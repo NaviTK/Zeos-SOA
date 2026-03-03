@@ -84,3 +84,37 @@ int access_ok(int type, const void * addr, unsigned long size)
   }
   return 0;
 }
+
+void itoa_hexadecimal(int a, char *b) {
+  int i = 0, i1;
+  char c;
+  int resto;
+
+  if (a == 0) { 
+      b[0] = '0'; 
+      b[1] = 0;
+      return; 
+  }
+
+  while (a > 0) {
+    resto = a % 16;    
+    if (resto < 10) {
+      // Si es del 0 al 9, lo convertimos a texto normal
+      b[i] = resto + '0';
+    } else {
+      // Si es del 10 al 15, le restamos 10 y le sumamos 'A' para que 10 sea 'A', 11 sea 'B', etc.
+      b[i] = (resto - 10) + 'A'; 
+    }
+    
+    a = a / 16;
+    i++;
+  }
+
+  for (i1 = 0; i1 < i / 2; i1++) {
+    c = b[i1];
+    b[i1] = b[i - i1 - 1];
+    b[i - i1 - 1] = c;
+  }
+  
+  b[i] = 0;
+}

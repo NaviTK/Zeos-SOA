@@ -9,8 +9,14 @@
 
 #include <zeos_interrupt.h>
 
+void keyboard_handler();
+void clock_handler();
+void pagefault_handler();
+
 Gate idt[IDT_ENTRIES];
 Register    idtR;
+
+int zeos_ticks = 0;
 
 char char_map[] =
 {
@@ -83,9 +89,36 @@ void setIdt()
   set_handlers();
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
-
+	
+  setInterruptHandler(14, pagefault_handler, 0);
   setInterruptHandler(32, clock_handler, 0);
   setInterruptHandler(33, keyboard_handler, 0);
   set_idt_reg(&idtR);
 }
 
+void keyboard_routine(){
+  unsigned char pv = inb(0x60);
+  // 0x80 = 10000000
+  // 0x80 & 00000000 = 0 // Make
+  // 0x80 & 10000000 = 1 // Break
+  int isbreak = pv & 0x80;
+  if(isbreak == 0){ // isbreak == false -> make
+    char toprint = char_map[pv & 0x7F];
+    printc_xy(70, 20, toprint); // la pantalla hace 80/25
+  }
+}
+
+void clock_routine(void) {
+	zeos_ticks++;
+	zeos_show_clock();
+}
+
+void pagefault_routine(int eip) {
+	printk("\n");
+	printk("Process generates a PAGE FAULT exception at EIP: 0x");
+	char buff[10];
+	itoa_hexadecimal(eip, buff);
+	printk(buff);
+	printk("\n");
+	while(1);
+}

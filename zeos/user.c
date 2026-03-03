@@ -4,7 +4,7 @@ char buff[24];
 
 int pid;
 
-int add(int par1, int par2);
+//int add(int par1, int par2);
 
 int __attribute__ ((__section__(".text.main")))
   main(void)
@@ -14,6 +14,10 @@ int __attribute__ ((__section__(".text.main")))
 
     
   while(1) {
- 	int n = add(1, 2);
+ 	//int n = add(1, 2);
+ 	
+ 	// para testear el pagefault ->
+ 	char* p = 0;
+	*p = 'x';
   }
 }

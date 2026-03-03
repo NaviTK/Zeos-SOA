@@ -64,11 +64,28 @@
 	popl %fs; \
 	popl %gs; \
 
-
+#define EOI \
+      	movb $0x20, %al; \
+      	outb %al, $0x20;
+      
 ENTRY(clock_handler)
 	SAVE_ALL
-	movb $0x20, %al
-	outb %al, $0x20 
-	call clock_routine()
-	RESORE_ALL
+	EOI
+	call clock_routine
+	RESTORE_ALL
+	iret
+	
+ENTRY(keyboard_handler)
+      	SAVE_ALL
+      	call keyboard_routine
+      	EOI
+      	RESTORE_ALL
+      	iret
+
+ENTRY(pagefault_handler)
+	SAVE_ALL
+	pushl 0x30(%esp)	
+	call pagefault_routine
+	EOI
+	RESTORE_ALL
 	iret
