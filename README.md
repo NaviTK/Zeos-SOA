@@ -1,2 +1,2 @@
 # Zeos-SOA
-Zeos Kernel implementatios
+Zeos Kernel implementation
