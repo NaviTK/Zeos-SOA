@@ -39,4 +39,4 @@ ENTRY (sys_call_table)
 	.long sys_ni_syscall	//34
 	.long sys_ni_syscall	//35
 	.globl MAX_SYSCALL 
-	MAX_SYSCALL = (. - sys_call_table)/4 # . es el final de la tabla, sys_call_table es el principio, dividimos entre 4 porque los elementos son long(ocupan 4 bytes)
+	MAX_SYSCALL = (. - sys_call_table)/4 // . es el final de la tabla, sys_call_table es el principio, dividimos entre 4 porque los elementos son long(ocupan 4 bytes)
