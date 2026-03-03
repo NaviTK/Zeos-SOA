@@ -113,3 +113,24 @@ ENTRY(syscall_handler_sysenter)
 	sti // Enable interrupts again
 	sysexit
 
+ENTRY(system_call_handler)
+      SAVE_ALL
+
+      # Comprobamos si el código de syscall es válido (0 > Syscall < MAX_SYSCALL)
+      cmpl $0, %eax
+      jl is_error
+      cmpl $MAX_SYSCALL, %eax
+      jg is_error
+
+	  # Código válido
+      call *sys_call_table(,%eax, 0x04);
+      jmp end
+
+is_error:
+      # Código inválido, -código de error a eax
+      movl $-ENOSYS, %eax 
+end:
+	  # Machacamos el anterior valor de %eax para que ahora contenga el resultado del system call
+      movl %eax, 0x18(%esp) 
+      RESTORE_ALL
+      iret
