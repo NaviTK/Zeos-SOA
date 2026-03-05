@@ -40,9 +40,16 @@ LIBZEOS = -L . -l zeos
 #add to USROBJ any object files required to complete the user program
 USROBJ = \
 	libc.o \
+	Wrappers.o \
 	# libjp.a \
 
 all:zeos.bin
+
+Wrappers.s: Wrappers.S
+	$(CPP) $(ASMFLAGS) -o $@ $<
+	
+Wrappers.o: Wrappers.s
+	$(AS) -o $@ $<
 
 zeos.bin: bootsect system build user
 	$(OBJCOPY) system system.out

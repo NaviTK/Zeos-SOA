@@ -45,21 +45,19 @@ int strlen(char *a)
 
 void perror(){
 	
-	write();
-	
 	switch(errno) {
 		case EFAULT:
-			write(1, "Bad address", 10);
+			write(1, "Bad address\n", 13);
 			break;
 			
 		case EINVAL:
-			write(1, "Invalid argument", 13);
+			write(1, "Invalid argument\n", 15);
 			break;
 			
 		default:
 			char buffer[4];
 			itoa(errno, buffer);
-			write(1, "Código de error: ", 16);
+			write(1, "Código de error: ", 19);
 			write(1, buffer, strlen(buffer));
 			write(1, "\n", 1);
 			break;
