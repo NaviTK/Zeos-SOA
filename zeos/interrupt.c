@@ -12,6 +12,7 @@
 void keyboard_handler();
 void clock_handler();
 void pagefault_handler();
+void writeMSR(unsigned long msr, unsigned long value);
 
 Gate idt[IDT_ENTRIES];
 Register    idtR;
@@ -89,10 +90,14 @@ void setIdt()
   set_handlers();
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
-	
+  
   setInterruptHandler(14, pagefault_handler, 0);
   setInterruptHandler(32, clock_handler, 0);
   setInterruptHandler(33, keyboard_handler, 0);
+  
+  writeMSR(0x174, KERNEL_CS);
+  writeMSR(0x175, INITIAL_ESP);
+  writeMSR(0x176, (long)syscall_handler_sysenter);
   set_idt_reg(&idtR);
 }
 

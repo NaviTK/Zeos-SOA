@@ -3,10 +3,10 @@
  */
 
 #include <libc.h>
-
+#include <errno.h>
 #include <types.h>
 
-int errno;
+int errno = 0;
 
 void itoa(int a, char *b)
 {
@@ -43,3 +43,25 @@ int strlen(char *a)
   return i;
 }
 
+void perror(){
+	
+	write();
+	
+	switch(errno) {
+		case EFAULT:
+			write(1, "Bad address", 10);
+			break;
+			
+		case EINVAL:
+			write(1, "Invalid argument", 13);
+			break;
+			
+		default:
+			char buffer[4];
+			itoa(errno, buffer);
+			write(1, "Código de error: ", 16);
+			write(1, buffer, strlen(buffer));
+			write(1, "\n", 1);
+			break;
+	}
+}

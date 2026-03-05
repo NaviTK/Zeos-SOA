@@ -103,9 +103,11 @@ ENTRY(syscall_handler_sysenter)
 	jg sysenter_err
 	call *sys_call_table(, %EAX, 0x04)
 	jmp sysenter_fin
-	sysenter_err:
+
+sysenter_err:
 	movl $-ENOSYS, %EAX
-	sysenter_fin:
+
+sysenter_fin:
 	movl %EAX, 0x18(%ESP)
 	RESTORE_ALL
 	movl (%ESP), %EDX // Return address
@@ -130,7 +132,21 @@ is_error:
       # Código inválido, -código de error a eax
       movl $-ENOSYS, %eax 
 end:
-	  # Machacamos el anterior valor de %eax para que ahora contenga el resultado del system call
+      # Machacamos el anterior valor de %eax para que ahora contenga el resultado del system call
       movl %eax, 0x18(%esp) 
       RESTORE_ALL
       iret
+      
+ENTRY(writeMSR)
+	#Guardamos la pila de usuario
+	pushl %ebp
+	mov %esp, %ebp
+	
+	#MSR(%ECX) = EDX:EAX
+	mov 0x8(%ebp), %ecx	#ECX = identificador del MSR
+	mov $0, %edx		#Parte alta del valor del MSR (siempre 0)
+	mov 0xC(%ebp), %eax	#Parte baja del valor del MSR
+	wrmsr
+	
+	pop %ebp
+	ret
