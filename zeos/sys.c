@@ -62,3 +62,7 @@ int sys_write(int fd, char *buffer, int size) {
 
 	return size - porEscribir;
 }
+
+int sys_gettime() {
+  return zeos_ticks;
+}
