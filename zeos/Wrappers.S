@@ -57,8 +57,8 @@ write_return:
 	jge fast_wr_no_error
 
 	# Se ejcuta si hay error
-	#negl %eax           # Para obtener codigo error en positivo
-	#movl %eax, errno    # Pone el error en errno
+	negl %eax           # Para obtener codigo error en positivo
+	movl %eax, errno    # Pone el error en errno
 	movl $-1, %eax
 
 fast_wr_no_error:
