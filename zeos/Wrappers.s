@@ -20,32 +20,32 @@
 
 
 .globl write; .type write, @function; .align 0; write:
-    # Implementacion con sysenter.
+    # Implementacion con sysenter y Mbrs
 
-    # Guardar pila usuario
+    # Guardamos pila usuario
     pushl %ebp
  mov %esp,%ebp
 
-    # Guardar registros que se podrian usar, ebx se usa para guardar la i si hay bucle así que es necesario
+    # Guardar registros que se podrian usar, en este caso solo guardamos ebx
     # pushl %ebx; pushl %esi; pushl %edi;
     pushl %ebx
 
-    #Pasar parametros
+    #Pasamos los parametros
     mov 0x10(%ebp), %ebx # size -> ebx
  mov 0x0c(%ebp), %ecx # buffer -> ecx
  mov 0x08(%ebp), %edx # fd -> edx
 
-    #Codigo system call en %eax
+    # Codigo 4 system call para write en %eax
     movl $4, %eax
 
-    # Guardar %ecx y %edx en user stack
+    # Guardar %ecx y %edx en la pila de usuario
     pushl %ecx
     pushl %edx
 
-    #Guardar la return address en stack (loque se hará despues del sysenter)
+    # Guardamos la dirrecion de lo que se hara despues deñ sysenter (loque se hará despues del sysenter)
     pushl $write_return
 
-    # Se hace fake dinamic link
+    # fake dinamic link
     pushl %ebp
     mov %esp, %ebp
 
@@ -53,7 +53,7 @@
     sysenter
 
 write_return:
-    # Eliminamos data de stack
+    # Eliminamos datos de la pila
     popl %ebp
     addl $4, %esp
     popl %edx
@@ -63,17 +63,61 @@ write_return:
     cmpl $0, %eax
  jge fast_wr_no_error
 
- # Se ejcuta si hay error
+ # se ejecuta cuando nos devuelven un error
  negl %eax # Para obtener codigo error en positivo
  movl %eax, errno # Pone el error en errno
  movl $-1, %eax
 
 fast_wr_no_error:
-    # Se ejecuta si no hay error o cuando el error se ha guardado en errno
+    # entramos aqui cuando no hay errores o despues de procesarlos
 
     # Restaurar registros antes de salir
-    # popl %edi; popl %esi; popl %ebx;
+    # popl %edi; popl %esi; popl %ebx; pero en este caso solo es ebx
     popl %ebx
 
+ popl %ebp
+ ret
+
+
+.globl gettime; .type gettime, @function; .align 0; gettime:
+
+    pushl %ebp
+ mov %esp,%ebp
+
+    #Codigo 10 systemcall en %eax
+    movl $10, %eax
+
+    # Guardar %ecx y %edx en pila de usuario
+    pushl %ecx
+    pushl %edx
+
+    #Guardar la direccion de retorno en la pila
+    pushl $gettime_return
+
+    # fake dynamic link
+    pushl %ebp
+    mov %esp, %ebp
+
+    #Entrar al sistema
+ sysenter
+
+gettime_return:
+    # sacamos de la pila
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    # vemos si ha habido algun error
+    cmpl $0, %eax
+ jge fast_gt_no_error
+
+ # entramos si hay error y guardamos el codigo en errno(hay que negar el codigo porque viene en negativo)
+ negl %eax # Para obtener codigo error en positivo
+ movl %eax, errno # Pone el error en errno
+ movl $-1, %eax
+
+fast_gt_no_error:
+    # Saltamos aqui cuando no hay error y despues de procesarlo
  popl %ebp
  ret
