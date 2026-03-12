@@ -18,7 +18,7 @@ int __attribute__ ((__section__(".text.main")))
  	//int n = add(1, 2);
 	  
 	//Test pagefault
- 	//char* p = 0;
+	//char* p = 0;
 	//*p = 'x';
 	
  	//Test Write
@@ -27,11 +27,11 @@ int __attribute__ ((__section__(".text.main")))
   	//if (write(1, "FUNCIONA!\n", 10) < 0) perror();
 	
 	//Test gettime
-	char buffer[10];
-	itoa(gettime(), buffer);
-	if(write(1, "Tiempo desde el inicio del sistema: ", 36) < 0) perror();
-	if(write(1, buffer, strlen(buffer)) < 0) perror();
-	if(write(1, "\n", 1) < 0) perror();
-	for(int i = 0; i < 100000000; i++); // Bucle para perder tiempo
+	//char buffer[10];
+	//itoa(gettime(), buffer);
+	//if(write(1, "Tiempo desde el inicio del sistema: ", 36) < 0) perror();
+	//if(write(1, buffer, strlen(buffer)) < 0) perror();
+	//if(write(1, "\n", 1) < 0) perror();
+	//for(int i = 0; i < 100000000; i++); // Bucle para perder tiempo
   }
 }
