@@ -7,6 +7,7 @@
 #include <io.h>
 #include <hardware.h>
 
+union task_union task[NR_TASKS];
 char initial_stack[KERNEL_STACK_SIZE]; // Space for the initial system stack
 struct task_struct* init_task;
 
