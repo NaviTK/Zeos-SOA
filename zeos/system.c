@@ -66,7 +66,7 @@ int __attribute__((__section__(".text.main")))
 
 
   printk("Entering user mode...");
-  //set_pe_flag();   /* Cuando se quite el prepare_mono_address_space */
+  //set_pe_flag();   /*Cuando se quite el prepare_mono_address_space */
   enable_int();
   /*
    * We return from a 'theorical' call to a 'call gate' to reduce our privileges
