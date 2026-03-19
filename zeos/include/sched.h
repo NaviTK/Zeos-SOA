@@ -17,6 +17,12 @@ enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
 struct task_struct {
   int PID;			/* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
+  struct list_head list;
+  
+  unsigned long quantum; // quant de temps pasa fins al canvi de context
+  unsigned long kernel_esp; // pila del sistema
+
+struct task_struct* parent; // punter al pare
 };
 
 union task_union {
