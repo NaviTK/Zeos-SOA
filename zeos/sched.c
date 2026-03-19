@@ -77,7 +77,13 @@ void init_task1(void)
 
 void init_sched()
 {
-
+	// initcialitzem totes les queues
+	INIT_LIST_HEAD(&freequeue);
+	INIT_LIST_HEAD(&readyqueue);
+	//INIT_LIST_HEAD(&blocked);
+	// Inicialitzem tots els espais de tasques
+	for (int i = 0; i < NR_TASKS; ++i) 
+		list_add (&(task[i].task.list), &freequeue);
 }
 
 /* get_DIR - Returns the Page Directory address for task 't' */
@@ -90,5 +96,14 @@ page_table_entry * get_DIR (struct task_struct *t)
 page_table_entry * get_PT (struct task_struct *t)
 {
        return (page_table_entry *)(((unsigned int)(t->dir_pages_baseAddr->bits.pbase_addr))<<12);
+}
+// retorna el quantum del proces t
+int get_quantum (struct task_struct *t) {
+	return t->quantum;
+}
+
+//modifica el quantum del proces t
+void set_quantum (struct task_struct *t, int new_quantum) {
+	t->quantum = new_quantum;
 }
 
