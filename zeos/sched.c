@@ -6,10 +6,15 @@
 #include <mm.h>
 #include <io.h>
 #include <hardware.h>
+#include <interrupt.h>
 
-union task_union task[NR_TASKS];
 char initial_stack[KERNEL_STACK_SIZE]; // Space for the initial system stack
 struct task_struct* init_task;
+struct task_struct *idle_task;
+
+struct list_head freequeue;
+struct list_head readyqueue;
+
 
 /*
 proceso de sistema que se usa cuando no hay procesos de modo usuario para ejecutar en la CPU
@@ -65,26 +70,38 @@ void init_task1(void)
 	init_TP[0].entry = so;
 	init_TP[1].entry = user;
 
-	struct task_struct* t_s = alloc_frame();
+	/*struct list_head *l = list_first(&freequeue);
+	list_del(l);
+	struct task_struct *PCB = list_head_to_task_struct(l);*/
 	
-	set_ss_pag(so_TP, t_s, t_s, 0);
+	struct task_struct *PCB = (struct task_struct *) alloc_frame();
+		
+	set_ss_pag(so_TP, (int) PCB, (int) PCB, 0);
 
-	t_s->pid = 1;
-	t_s->dir_pages_baseAddr = init_TP;
-
-	set_cr3((unsigned int) init_TP);
+	PCB->PID = 1;
+	
+	tss.esp0 = (DWord) &initial_stack;
+	writeMSR(0x175, (int) tss.esp0);
+	
+	PCB->dir_pages_baseAddr = init_TP;
+	set_cr3(init_TP);
+		
+	init_task = PCB;
 }	
 
+void inner_task_switch(union task_union *new){
+	tss.esp0 = KERNEL_ESP(union task_union *) new;
+
+	writeMSR(0x175, (int) tss.esp0);
+
+	set_cr3(get_DIR(&new->task));
+
+	cambio_pila();
+}
 
 void init_sched()
 {
-	// initcialitzem totes les queues
-	INIT_LIST_HEAD(&freequeue);
-	INIT_LIST_HEAD(&readyqueue);
-	//INIT_LIST_HEAD(&blocked);
-	// Inicialitzem tots els espais de tasques
-	for (int i = 0; i < NR_TASKS; ++i) 
-		list_add (&(task[i].task.list), &freequeue);
+
 }
 
 /* get_DIR - Returns the Page Directory address for task 't' */
