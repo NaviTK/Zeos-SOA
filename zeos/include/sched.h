@@ -9,6 +9,7 @@
 #include <types.h>
 #include <mm_address.h>
 
+#define NR_TASKS 10
 #define KERNEL_STACK_SIZE	1024
 
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
