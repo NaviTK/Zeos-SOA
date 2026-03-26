@@ -42,11 +42,14 @@ ENTRY(task_switch)
 
 
 ENTRY(cambio_pila)
+    # Guardamos el ebp del current
     movl 4(%esp), %eax
     movl %ebp, (%eax)
 
+    # Guardamos %ebp en el valor del esp del nuevo proceso 
     movl 8(%esp), %esp
 
+    # Preparamos la estructura de la pila
     popl %ebp
 
     ret
