@@ -33,7 +33,8 @@ SYSOBJ = \
 	devices.o \
 	utils.o \
 	list.o \
-	hardware.o
+	hardware.o \
+	extras.o
 
 LIBZEOS = -L . -l zeos
 
@@ -41,6 +42,7 @@ LIBZEOS = -L . -l zeos
 USROBJ = \
 	libc.o \
 	Wrappers.o \
+	extras.o \
 	# libjp.a \
 
 all:zeos.bin
@@ -49,6 +51,12 @@ Wrappers.s: Wrappers.S
 	$(CPP) $(ASMFLAGS) -o $@ $<
 	
 Wrappers.o: Wrappers.s
+	$(AS) -o $@ $<
+
+extras.s: extras.S
+	$(CPP) $(ASMFLAGS) -o $@ $<
+	
+extras.o: extras.s
 	$(AS) -o $@ $<
 
 zeos.bin: bootsect system build user

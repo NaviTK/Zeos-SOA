@@ -22,7 +22,7 @@ struct task_struct {
   unsigned long quantum; // quant de temps pasa fins al canvi de context
   unsigned long kernel_esp; // pila del sistema
 
-struct task_struct* parent; // punter al pare
+  struct task_struct* parent; // punter al pare
 };
 
 union task_union {

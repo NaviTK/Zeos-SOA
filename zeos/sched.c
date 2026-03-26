@@ -90,7 +90,7 @@ void init_task1(void)
 }	
 
 void inner_task_switch(union task_union *new){
-	tss.esp0 = KERNEL_ESP(union task_union *) new;
+	tss.esp0 = KERNEL_ESP((union task_union *) new);
 
 	writeMSR(0x175, (int) tss.esp0);
 
