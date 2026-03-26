@@ -43,6 +43,8 @@ void init_idle(void);
 
 void init_sched(void);
 
+void inner_task_switch(union task_union *new);
+
 struct task_struct * current();
 
 page_table_entry * get_PT (struct task_struct *t) ;
