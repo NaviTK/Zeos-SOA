@@ -124,8 +124,10 @@ void init_task1(void)
 	set_ss_pag(so_TP, so, so, 0);
 	set_ss_pag(so_TP, user, user, 1);
 
-	init_TP[0].entry = so;
-	init_TP[1].entry = user;
+	set_ss_pag(init_TP, 0, so, 0);			//directorio entrada 0 --> tabla kernel
+	set_ss_pag(init_TP, 1, user, 1);		//directorio entrada 1 --> tabla usuario
+	//init_TP[0].entry = so;
+	//init_TP[1].entry = user;
 	// ========================================================
 	// BLOQUE INMODIFICABLE FIN
 	// ========================================================
@@ -155,7 +157,9 @@ void inner_task_switch(union task_union *new)
 
 	set_cr3(get_DIR(&new->task));
 
+	printk("Cambiando pilas");
 	cambio_pila(&current()->kernel_esp, new->task.kernel_esp);
+	printk("Cambio correcto\n");
 }
 
 void init_sched()

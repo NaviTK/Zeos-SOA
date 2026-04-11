@@ -31,6 +31,8 @@ Register    gdtR;
 /* TSS */
 TSS         tss; 
 
+page_table_entry dir_pages[NR_TASKS][TOTAL_PAGES];
+
 extern char* itoa(int, char*);
 
 /***********************************************/
