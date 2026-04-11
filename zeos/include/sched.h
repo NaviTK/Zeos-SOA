@@ -10,12 +10,12 @@
 #include <mm_address.h>
 
 #define NR_TASKS 10
-#define KERNEL_STACK_SIZE	1024
+#define KERNEL_STACK_SIZE    1024
 
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
 
 struct task_struct {
-  int PID;			/* Process ID. This MUST be the first field of the struct. */
+  int PID;                /* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
   struct list_head list;
   
@@ -30,25 +30,22 @@ union task_union {
   unsigned long stack[KERNEL_STACK_SIZE];    /* pila de sistema, per procés */
 };
 
+#define KERNEL_ESP(t)       (DWord) &(t)->stack[KERNEL_STACK_SIZE]
 
-#define KERNEL_ESP(t)       	(DWord) &(t)->stack[KERNEL_STACK_SIZE]
-
-extern char initial_stack[KERNEL_STACK_SIZE];
-#define INITIAL_ESP             (DWord) &initial_stack[KERNEL_STACK_SIZE]
+/* ------------------------------------------------------------- */
+/* ¡CORRECCIÓN VITAL! initial_stack DEBE ser unsigned long       */
+/* para que ocupe 4096 bytes (4KB) en lugar de solo 1024 bytes.  */
+/* ------------------------------------------------------------- */
+extern unsigned long initial_stack[KERNEL_STACK_SIZE] __attribute__((__aligned__(4096)));
+#define INITIAL_ESP         (DWord) &initial_stack[KERNEL_STACK_SIZE]
 
 /* Inicialitza les dades del proces inicial */
 void init_task1(void);
-
 void init_idle(void);
-
 void init_sched(void);
-
 void inner_task_switch(union task_union *new);
-
 struct task_struct * current();
-
 page_table_entry * get_PT (struct task_struct *t) ;
-
 page_table_entry * get_DIR (struct task_struct *t) ;
 int allocate_DIR(struct task_struct *t);
 void set_quantum(struct task_struct *t, int new_quantum);
@@ -57,5 +54,8 @@ extern struct task_struct *idle_task;
 extern struct task_struct *init_task;
 
 void task_switch(union task_union *new);
+
+/* Añadimos la firma de nuestra función en ensamblador */
+void cambio_pila(unsigned long *current_addr, unsigned long new_kesp);
 
 #endif  /* __SCHED_H__ */

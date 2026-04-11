@@ -49,14 +49,19 @@
 
 
 .globl cambio_pila; .type cambio_pila, @function; .align 0; cambio_pila:
-    # Guardamos el ebp del current
-    movl 4(%esp), %eax
+    # 1. Crear el marco de pila de la función
+    pushl %ebp
+    movl %esp, %ebp
+
+    # 2. Guardar el EBP actual (que apunta a la cima temporal de la pila) en el PCB viejo
+    # El parámetro &current()->kernel_esp está en la posición 8(%ebp)
+    movl 8(%ebp), %eax
     movl %ebp, (%eax)
 
-    # Guardamos %ebp en el valor del esp del nuevo proceso
-    movl 8(%esp), %esp
+    # 3. Cambiar la pila
+    # El parámetro new_kesp está en la posición 12(%ebp)
+    movl 12(%ebp), %esp
 
-    # Preparamos la estructura de la pila
+    # 4. Deshacer el marco de pila del proceso nuevo y retornar limpiamente
     popl %ebp
-
     ret
