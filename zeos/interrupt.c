@@ -118,6 +118,19 @@ void keyboard_routine(){
 void clock_routine(void) {
 	zeos_ticks++;
 	zeos_show_clock();
+
+  //schedule(); IMPLEMENTAR Y DESCOMENTAR CUANDO SE TENGA EN CUENTA EL QUANTUM
+
+  //Test Task_switch()
+  if(zeos_ticks % 1000 == 0) {
+    printk("Entra idle\n");
+    task_switch((union task_union*)idle_task);
+  }
+  else if (zeos_ticks % 2500 == 0) {
+    printk("Entra init\n");
+    task_switch((union task_union*)init_task);
+  }
+
 }
 
 void pagefault_routine(int eip) {

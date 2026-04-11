@@ -141,8 +141,7 @@ void init_task1(void)
 	// 4. Configuramos el stack de sistema para cuando la CPU pase a Ring 0
 	// OJO: tss.esp0 debe apuntar a la CIMA de la pila del kernel del proceso,
 	// no al inicio de un array global. Accedemos a él mediante task_union.
-	union task_union *task1_union = (union task_union *)pcb;
-	tss.esp0 = (DWord) & (task1_union->stack[KERNEL_STACK_SIZE]);
+	tss.esp0 = KERNEL_ESP((union task_union *)pcb);
 	writeMSR(0x175, (int)tss.esp0);
 
 	// 5. Guardamos el proceso INIT en la variable global
@@ -151,13 +150,17 @@ void init_task1(void)
 
 void inner_task_switch(union task_union *new)
 {
-	tss.esp0 = KERNEL_ESP((union task_union *)new);
-
-	writeMSR(0x175, (int)tss.esp0);
-
+	if(new == (union task_union *)current()) return;
+	printk("0\n");
 	set_cr3(get_DIR(&new->task));
+	printk("1\n");
+	tss.esp0 = KERNEL_ESP((union task_union *)new);
+	printk("2\n");
+	writeMSR(0x175, (int)tss.esp0);
+	printk("3\n");
+	
 
-	printk("Cambiando pilas");
+	printk("Cambiando pilas\n");
 	cambio_pila(&current()->kernel_esp, new->task.kernel_esp);
 	printk("Cambio correcto\n");
 }

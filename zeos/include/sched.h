@@ -50,5 +50,12 @@ struct task_struct * current();
 page_table_entry * get_PT (struct task_struct *t) ;
 
 page_table_entry * get_DIR (struct task_struct *t) ;
+int allocate_DIR(struct task_struct *t);
+void set_quantum(struct task_struct *t, int new_quantum);
+
+extern struct task_struct *idle_task;
+extern struct task_struct *init_task;
+
+void task_switch(union task_union *new);
 
 #endif  /* __SCHED_H__ */
