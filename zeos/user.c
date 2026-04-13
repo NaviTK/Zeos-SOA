@@ -27,11 +27,18 @@ int __attribute__ ((__section__(".text.main")))
   	//if (write(1, "FUNCIONA!\n", 10) < 0) perror();
 	
 	//Test gettime
-	char buffer[10];
-	itoa(gettime(), buffer);
-	if(write(1, "Tiempo desde el inicio del sistema: ", 36) < 0) perror();
-	if(write(1, buffer, strlen(buffer)) < 0) perror();
-	if(write(1, "\n", 1) < 0) perror();
-	for(int i = 0; i < 100000000; i++); // Bucle para perder tiempo
+	//char buffer[10];
+	//itoa(gettime(), buffer);
+	//if(write(1, "Tiempo desde el inicio del sistema: ", 36) < 0) perror();
+	//if(write(1, buffer, strlen(buffer)) < 0) perror();
+	//if(write(1, "\n", 1) < 0) perror();
+	//for(int i = 0; i < 100000000; i++); // Bucle para perder tiempo
+
+	//Test gettime
+	//int pid = getpid();
+	//itoa(pid, buffer);
+	//if(write(1, "El pid del proceso es: ", 23) < 0) perror();
+	//if(write(1, buffer, strlen(buffer)) < 0) perror();
+	//if(write(1, "\n", 1) < 0) perror();
   }
 }

@@ -30,7 +30,7 @@
  .long sys_ni_syscall
  .long sys_ni_syscall
  .long sys_ni_syscall
- .long sys_ni_syscall
+ .long sys_getpid
  .long sys_ni_syscall
  .long sys_ni_syscall
  .long sys_ni_syscall

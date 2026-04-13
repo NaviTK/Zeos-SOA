@@ -114,3 +114,36 @@ fast_gt_no_error:
     # Saltamos aqui cuando no hay error y despues de procesarlo
 	popl %ebp
 	ret
+
+ENTRY(getpid)
+    pushl %ebp
+    movl %esp, %ebp
+
+    pushl %ecx
+    pushl %edx
+
+    movl $20, %eax      #Código de la syscall
+
+    pushl $getpid_return        #Direccion de retorno
+
+    pushl %ebp          #Fake dynamic link
+    movl %esp, %ebp
+
+    sysenter
+
+getpid_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+    
+    cmpl $0, %eax
+    jge getpid_sin_error        #Si no hay error saltamos
+
+    negl %eax               #Ponemos el error en errno
+    movl %eax, errno
+    movl $-1, %eax
+
+getpid_sin_error:
+    popl %ebp
+    ret
