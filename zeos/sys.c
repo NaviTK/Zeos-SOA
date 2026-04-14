@@ -19,6 +19,11 @@
 #define ESCRIPTURA 1
 
 extern int zeos_ticks;
+extern struct list_head freequeue;
+extern struct list_head readyqueue;
+extern int last_kernel;
+extern int first_kernel;
+
 
 int check_fd(int fd, int permissions)
 {
@@ -63,6 +68,78 @@ int sys_write(int fd, char *buffer, int size) {
 	porEscribir -= bytesEscritos;
 
 	return size - porEscribir;
+}
+
+int ret_from_fork(){
+	return 0;
+}
+
+int pidGlobal = 100;
+int sys_fork(){
+	int num_pag_kernel = ((int)&last_kernel - (int)&first_kernel) >> 12; // Dividir por 4096 (PAGE_SIZE)
+
+	if(list_empty(&freequeue)) return -ENOMEM;
+
+	struct list_head *lh = list_first(&freequeue);
+	list_del(lh);
+	union task_union* child = list_head_to_task_struct(lh);
+	copy_data(current(), child, sizeof(union task_union));
+
+	allocate_DIR((struct task_struct*) child);
+	
+	int numPaginas[NUM_PAG_DATA];
+	for(int frame = 0; frame < NUM_PAG_DATA; frame++) {
+		numPaginas[frame] = alloc_frame();
+
+		if(numPaginas[frame] < 0) {			//Si no tenemos suficiente espacio
+			for(int i = 0; i < frame; i++) free_frame(numPaginas[i]);
+
+			list_add_tail(&child->task.list, &freequeue);
+
+			return -EAGAIN;
+		}
+	}
+	printk("Llego");
+	//Paginas del hijo creadas
+	page_table_entry *child_pt = get_PT(&(child->task));
+	printk("Llego1");
+	page_table_entry *parent_pt = get_PT(current());
+printk("Llego2");
+	//Para que padre e hijo compartan paginas físicas de código
+	for(int page = 0; page < NUM_PAG_CODE; page++) {
+		set_ss_pag(child_pt, PAG_LOG_INIT_CODE + page, get_frame(parent_pt, PAG_LOG_INIT_CODE + page), 1);
+	}
+printk("Llego");
+	//Para que padre e hijo compartan memoria de sistema
+	for(int page = 0; page < num_pag_kernel; page++) {
+		set_ss_pag(child_pt, page, get_frame(parent_pt, page), 1);
+	}
+printk("Llego");
+	//Mapeo de data + stack del child
+	for(int page = 0; page < NUM_PAG_DATA; page++) {
+		set_ss_pag(child_pt, PAG_LOG_INIT_DATA + page, numPaginas[page], 1);
+	}
+printk("Llego");
+	int TOTAL_SPACE = num_pag_kernel + NUM_PAG_DATA + NUM_PAG_CODE;
+	for(int page = 0; page < NUM_PAG_DATA; page++) {
+		set_ss_pag(parent_pt, page + TOTAL_SPACE, get_frame(child_pt, PAG_LOG_INIT_DATA + page), 0);
+		copy_data((void *)((PAG_LOG_INIT_DATA + page) << 12), (void *)((TOTAL_SPACE + page) << 12), PAGE_SIZE);
+		del_ss_pag(parent_pt, TOTAL_SPACE + page);
+	}
+	set_cr3(get_DIR(current()));		//Flush del TLB
+
+	child->task.PID = ++pidGlobal;
+	child->task.quantum = 100;
+
+	/*Para que el nuevo proceso funcione con task_switch preparamos la pila (ponemos algo en ebp, @RET, kernel_esp-->@handler)*/
+	((unsigned long *)KERNEL_ESP(child))[-0x13] = (unsigned long) 0;						//%ebp = $0
+	((unsigned long *)KERNEL_ESP(child))[-0x12] = (unsigned long) ret_from_fork;			//@RET = ret_from_fork
+	child->task.kernel_esp = (unsigned long) &(child->stack[KERNEL_STACK_SIZE - 19]); 		//Kernel_esp = top de la pila
+
+	/*POR AÑADIR LO DEL BLOCKED Y UNBLOCKED*/
+
+	list_add_tail(&(child->task.list), &readyqueue);		//Añadimos al child a la ready queue
+	return child->task.PID;
 }
 
 int sys_gettime() {

@@ -40,5 +40,13 @@ int __attribute__ ((__section__(".text.main")))
 	//if(write(1, "El pid del proceso es: ", 23) < 0) perror();
 	//if(write(1, buffer, strlen(buffer)) < 0) perror();
 	//if(write(1, "\n", 1) < 0) perror();
+
+	//Test fork
+	int pidHijo = fork();
+	if(pidHijo < 0) perror();
+	else if(pidHijo == 0) if(write(1, "Soy el padre\n", 13) < 0) perror();
+	else {
+		if(write(1, "Soy el hijo\n", 12) < 0) perror();
+	}
   }
 }

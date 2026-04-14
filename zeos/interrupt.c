@@ -122,23 +122,23 @@ void clock_routine(void) {
   //schedule(); IMPLEMENTAR Y DESCOMENTAR CUANDO SE TENGA EN CUENTA EL QUANTUM
 
   //Test Task_switch()
-	static int turno_actual = 0;
-// Usamos un solo intervalo fijo (Quantum). Por ejemplo, 1000 ticks.
-if (zeos_ticks % 1000 == 0) {
-    
-    // Si actualmente estamos en init (0), cambiamos a idle (1)
-    if (turno_actual == 0) {
-        printk("Cambiando a idle...\n");
-        turno_actual = 1; // Actualizamos el estado antes del cambio
-        task_switch((union task_union*)idle_task);
-    } 
-    // Si actualmente estamos en idle (1), cambiamos a init (0)
-    else {
-        printk("Cambiando a init...\n");
-        turno_actual = 0; // Actualizamos el estado antes del cambio
-        task_switch((union task_union*)init_task);
-    }
-}
+  /*static int turno_actual = 0;
+  // Usamos un solo intervalo fijo (Quantum). Por ejemplo, 1000 ticks.
+  if (zeos_ticks % 1000 == 0) {
+      
+      // Si actualmente estamos en init (0), cambiamos a idle (1)
+      if (turno_actual == 0) {
+          printk("Cambiando a idle...\n");
+          turno_actual = 1; // Actualizamos el estado antes del cambio
+          task_switch((union task_union*)idle_task);
+      } 
+      // Si actualmente estamos en idle (1), cambiamos a init (0)
+      else {
+          printk("Cambiando a init...\n");
+          turno_actual = 0; // Actualizamos el estado antes del cambio
+          task_switch((union task_union*)init_task);
+      }
+  }*/
 
 }
 

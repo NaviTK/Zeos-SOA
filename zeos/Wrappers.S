@@ -127,7 +127,7 @@ ENTRY(getpid)
     pushl $getpid_return        #Direccion de retorno
 
     pushl %ebp          #Fake dynamic link
-    movl %esp, %ebp
+    mov %esp, %ebp
 
     sysenter
 
@@ -145,5 +145,38 @@ getpid_return:
     movl $-1, %eax
 
 getpid_sin_error:
+    popl %ebp
+    ret
+
+ENTRY(fork)
+    pushl %ebp
+    movl %esp, %ebp
+
+    pushl %ecx
+    pushl %edx
+
+    movl $2, %eax
+
+    pushl $fork_return
+
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+fork_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax
+    jge fork_sin_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+fork_sin_error:
     popl %ebp
     ret

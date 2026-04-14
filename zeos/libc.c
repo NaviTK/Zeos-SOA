@@ -53,6 +53,14 @@ void perror(){
 		case EINVAL:
 			write(1, "Invalid argument\n", 15);
 			break;
+
+    case ENOMEM:
+      write(1, "Out of memory\n", 15);
+			break;
+
+    case EAGAIN:
+      write(1, "Try again\n", 15);
+			break;
 			
 		default:
 			char buffer[4];

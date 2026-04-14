@@ -218,10 +218,10 @@ void inner_task_switch(union task_union *t) {
     tss.esp0 = KERNEL_ESP(t);
     set_cr3(t->task.dir_pages_baseAddr);
     
-    // --- DEBUG DEFINITIVO ---
-    char buf[16];
     struct task_struct *curr = current(); // Guardamos current() aquí
-
+    
+    // DEBUG
+    /*char buf[16];
     printk("PID actual: ");
     itoa_hexadecimal(curr->PID, buf);
     printk(buf);
@@ -230,10 +230,8 @@ void inner_task_switch(union task_union *t) {
     printk("Nuevo ESP: ");
     itoa_hexadecimal(t->task.kernel_esp, buf); 
     printk(buf);
-    printk("\n");
-    // ------------------------
-    
-    // Usamos la variable 'curr' en lugar de llamar a current() de nuevo
+    printk("\n");*/
+
     cambio_pila(&(curr->kernel_esp), t->task.kernel_esp);
 }
 
@@ -252,7 +250,7 @@ void init_sched()
 
     //  Recorre vector de tasks per afegir tots en freeequeue
 
-    for (int i = 0; i < NR_TASKS; ++i)
+    for (int i = 1; i < NR_TASKS; ++i)
 
         list_add(&(task[i].task.list), &freequeue);
 
@@ -273,8 +271,10 @@ page_table_entry *get_DIR(struct task_struct *t)
 int allocate_DIR(struct task_struct *t)
 
 {
-
-    int pos;
+    int pos = ((int)t - (int)task) / sizeof(union task_union);
+    t->dir_pages_baseAddr = (page_table_entry *)&dir_pages[pos];
+    return 1;
+    /*int pos;
 
 
     pos = ((int)t - (int)task) / sizeof(union task_union);
@@ -301,7 +301,7 @@ int allocate_DIR(struct task_struct *t)
     }
 
 
-    return 1;
+    return 1;*/
 
 }
 
