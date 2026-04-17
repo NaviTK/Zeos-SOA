@@ -141,7 +141,7 @@ int sys_fork(){
 
   // Configuración de PID y Quantum
   child->task.PID = ++pidGlobal;
-  child->task.quantum = 100;
+  child->task.quantum = 10;
 
   // Preparar la pila para task_switch (ebp, ret_from_fork)
   // El layout esperado por cambio_pila y task_switch:
@@ -169,11 +169,16 @@ void sys_exit() {
     free_frame(get_DIR(curr)[1].bits.pbase_addr);
     get_DIR(curr)[1].entry = 0;
     
-    // 3. Liberar el PCB
+    for (int page = 0; page < NUM_PAG_DATA; page++){
+      free_frame(get_frame(ut, PAG_LOG_INIT_DATA + page));
+      del_ss_pag(ut, PAG_LOG_INIT_DATA + page);
+    }
+
+    // Liberar el PCB
     list_add_tail(&curr->list, &freequeue);
     
     // 4. Cambiar a otro proceso
-    schedule();
+    sched_next_rr();
 }
 
 int sys_gettime() {

@@ -119,7 +119,7 @@ void clock_routine(void) {
 	zeos_ticks++;
 	zeos_show_clock();
 
-  //schedule(); IMPLEMENTAR Y DESCOMENTAR CUANDO SE TENGA EN CUENTA EL QUANTUM
+  schedule(); //IMPLEMENTAR Y DESCOMENTAR CUANDO SE TENGA EN CUENTA EL QUANTUM
 
   //Test Task_switch()
   /*static int turno_actual = 0;

@@ -31,7 +31,7 @@ struct task_struct *idle_task;
 struct list_head freequeue;
 
 struct list_head readyqueue;
-
+int remaining_quantum;
 
 #if 1
 
@@ -216,6 +216,7 @@ void init_task1(void)
 
 void inner_task_switch(union task_union *t) {
     tss.esp0 = KERNEL_ESP(t);
+    writeMSR(0x175, (int)tss.esp0);
     set_cr3(t->task.dir_pages_baseAddr);
     
     struct task_struct *curr = current(); // Guardamos current() aquí
@@ -256,15 +257,46 @@ void init_sched()
 
 }
 
-void schedule() {
-    if (!list_empty(&readyqueue)) {
-        struct list_head *lh = list_first(&readyqueue);
-        list_del(lh);
-        struct task_struct *next = list_head_to_task_struct(lh);
-        task_switch((union task_union*)next);
-    } else {
-        task_switch((union task_union*)idle_task);
-    }
+void schedule(void) {
+	update_sched_data_rr();
+	if(needs_sched_rr()) {
+		update_process_state_rr(current(), &readyqueue);
+		sched_next_rr();
+	}
+}
+
+void update_sched_data_rr(void) {
+	--remaining_quantum;
+}
+
+int needs_sched_rr(void) {
+	if (remaining_quantum > 0 && !list_empty(&readyqueue)) return 0;
+	return 1;
+}
+
+void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue) {
+	struct list_head * list_tmp = &t->list;
+	if(!(list_tmp->prev == NULL && list_tmp->next == NULL)){
+		list_del(list_tmp);
+	}
+
+	if (dst_queue) list_add_tail(list_tmp, dst_queue);
+}
+
+void sched_next_rr(void)
+{
+	struct task_struct *next;
+
+	if(!list_empty(&readyqueue)){
+		struct list_head *lf = list_first(&readyqueue);
+		list_del(lf);
+		next = list_head_to_task_struct(lf);
+	}
+	else{
+		next = idle_task;
+	}
+	remaining_quantum = get_quantum(next);
+	if(current()->PID != next->PID) task_switch((union task_union *)next);
 }
 
 

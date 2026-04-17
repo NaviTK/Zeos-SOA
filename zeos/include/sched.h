@@ -60,4 +60,13 @@ void task_switch(union task_union *new);
 /* Añadimos la firma de nuestra función en ensamblador */
 void cambio_pila(unsigned long *current_addr, unsigned long new_kesp);
 
+void schedule();
+void sched_next_rr();
+void update_sched_data_rr();
+int needs_sched_rr();
+void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue);
+
+void set_quantum(struct task_struct *t, int new_quantum);
+int get_quantum(struct task_struct *t);
+
 #endif  /* __SCHED_H__ */
