@@ -27,7 +27,7 @@ struct task_struct *init_task;
 
 struct task_struct *idle_task;
 
-
+extern struct list_head blocked;
 struct list_head freequeue;
 
 struct list_head readyqueue;
@@ -98,7 +98,11 @@ void init_idle(void)
 
     struct task_struct *PCB = list_head_to_task_struct(l);
 
-
+	//Inicialitzem les variables per block i unblock
+	PCB->parent = NULL;
+	INIT_LIST_HEAD(&(PCB->children_blocked));
+	INIT_LIST_HEAD(&(PCB->children_unblocked));
+	PCB->pending_unblocks = 0;
     // Pasos 1, 2 y 5: Crear espacio de direcciones (solo directorio)
 
     // y asignar a dir_pages_baseAddr. La macro/función allocate_DIR
@@ -168,7 +172,12 @@ void init_task1(void)
 
     pcb->PID = 1;
     set_quantum(pcb, 10);
-
+	//Inicialitzem les variables per block i unblock
+	pcb->parent = NULL;
+	INIT_LIST_HEAD(&(pcb->children_blocked));
+	INIT_LIST_HEAD(&(pcb->children_unblocked));
+	INIT_LIST_HEAD(&(pcb->sibiling));
+	pcb->pending_unblocks = 0;
     // ========================================================
     // BLOQUE INMODIFICABLE INICIO
     // ========================================================

@@ -1,34 +1,29 @@
 #include <libc.h>
 
 char buff[24];
-
 int pid;
 
-//int add(int par1, int par2);
-
 int __attribute__ ((__section__(".text.main")))
-  main(void)
-  {
-    // Test fork
-    
+main(void)
+{
+
     char buffer[16];
+/*
+    // --- TEST FORK 
     int pidHijo = fork();
     
     if (pidHijo < 0) {
         perror();
     } 
     else if (pidHijo == 0) {
-        // Estamos en el hijo
         int my_pid = getpid();
         itoa(my_pid, buffer);
         write(1, "Soy el HIJO. Mi PID es: ", 24);
         write(1, buffer, strlen(buffer));
         write(1, "\n", 1);
-        // El hijo termina
         exit();
     } 
     else {
-        // Estamos en el padre
         int my_pid = getpid();
         itoa(my_pid, buffer);
         write(1, "Soy el PADRE. Mi PID es: ", 25);
@@ -37,34 +32,49 @@ int __attribute__ ((__section__(".text.main")))
         itoa(pidHijo, buffer);
         write(1, buffer, strlen(buffer));
         write(1, "\n", 1);
+    }*/
+    
+    //--------------------------------------- 
+
+    // --- NUEVO TEST: BLOCK / UNBLOCK ---
+    
+    write(1, "\n--- Iniciando Test Block/Unblock ---\n", 38);
+
+    int child_pid = fork();
+
+    if (child_pid < 0) {
+        perror();
+    } 
+    else if (child_pid == 0) {
+        // Lógica del HIJO
+        write(1, "[HIJO] Ejecutando y a punto de bloquearme...\n", 45);
+        
+        block(); // El hijo se detiene aquí hasta que el padre llame a unblock
+        for(int i = 0; i < 200000000; i++); // tarda unos 5-6 segundos en escribirlo
+        write(1, "[HIJO] ¡Despierto! Gracias, padre. Terminando...\n", 50);
+        exit();
+    } 
+    else {
+        // Lógica del PADRE
+        write(1, "[PADRE] El hijo deberia estar bloqueado ahora.\n", 47);
+        
+        // Esperamos un tiempo para asegurar que el hijo llegue a ejecutar block()
+        for(int i = 0; i < 5000000; i++); 
+
+        write(1, "[PADRE] Voy a desbloquear al hijo con PID: ", 43);
+        itoa(child_pid, buffer);
+        write(1, buffer, strlen(buffer));
+        write(1, "\n", 1);
+
+        if (unblock(child_pid) < 0) {
+            write(1, "Error: No se pudo desbloquear al hijo.\n", 39);
+            perror();
+        }
+
+        write(1, "[PADRE] Unblock enviado. Esperando finalizacion...\n", 51);
     }
 
-    while(1){
-        // codigo usuario de prueba
-        //int n = add(1, 2);
-
-        //Test pagefault
-        //char* p = 0;
-        //*p = 'x';
-
-        //Test Write
-        //if (write(1, "El siguiente write dara error de canal:\n", 40) < 0) perror();
-        //if (write(2, "Hello World!\n", 13) < 0) perror();
-        //if (write(1, "FUNCIONA!\n", 10) < 0) perror();
-
-        //Test gettime
-        //char buffer[10];
-        //itoa(gettime(), buffer);
-        //if(write(1, "Tiempo desde el inicio del sistema: ", 36) < 0) perror();
-        //if(write(1, buffer, strlen(buffer)) < 0) perror();
-        //if(write(1, "\n", 1) < 0) perror();
-        //for(int i = 0; i < 100000000; i++); // Bucle para perder tiempo
-
-        //Test gettime
-        //int pid = getpid();
-        //itoa(pid, buffer);
-        //if(write(1, "El pid del proceso es: ", 23) < 0) perror();
-        //if(write(1, buffer, strlen(buffer)) < 0) perror();
-        //if(write(1, "\n", 1) < 0) perror();
+    // Bucle infinito para que el sistema no muera inmediatamente
+    while(1) {
     }
 }

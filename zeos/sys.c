@@ -19,6 +19,7 @@
 #define ESCRIPTURA 1
 
 extern int zeos_ticks;
+extern struct list_head blocked;
 extern struct list_head freequeue;
 extern struct list_head readyqueue;
 extern int last_kernel;
@@ -143,6 +144,23 @@ int sys_fork(){
   child->task.PID = ++pidGlobal;
   child->task.quantum = 10;
 
+  // --- INICIO DE LAS CORRECCIONES PARA BLOCK/UNBLOCK ---
+  
+  // 1. El padre del nuevo proceso es el proceso actual (quien llama a fork)
+  child->task.parent = current();
+  
+  // 2. Inicializar las listas de hijos bloqueados/no bloqueados para que nazcan vacías
+  INIT_LIST_HEAD(&(child->task.children_blocked));
+  INIT_LIST_HEAD(&(child->task.children_unblocked));
+  
+  // 3. Añadir este hijo a la lista de "no bloqueados" del padre actual
+  list_add_tail(&(child->task.sibiling), &(current()->children_unblocked));
+  
+  // 4. Asegurar que el hijo no hereda llamadas a unblock pendientes del padre
+  child->task.pending_unblocks = 0;
+  
+  // --- FIN DE LAS CORRECCIONES ---
+
   // Preparar la pila para task_switch (ebp, ret_from_fork)
   // El layout esperado por cambio_pila y task_switch:
   // [Contexto syscall/interrupción] <- 16 regs
@@ -150,8 +168,8 @@ int sys_fork(){
   // [ret_from_fork]                 <- 18
   // [ebp=0]                         <- 19
   
-  ((unsigned long *)KERNEL_ESP(child))[-19] = (unsigned long) 0;			// %ebp
-  ((unsigned long *)KERNEL_ESP(child))[-18] = (unsigned long) ret_from_fork;	// @RET
+  ((unsigned long *)KERNEL_ESP(child))[-19] = (unsigned long) 0;            // %ebp
+  ((unsigned long *)KERNEL_ESP(child))[-18] = (unsigned long) ret_from_fork;    // @RET
   child->task.kernel_esp = (unsigned long) &(child->stack[KERNEL_STACK_SIZE - 19]);
 
   list_add_tail(&(child->task.list), &readyqueue);
@@ -188,3 +206,53 @@ int sys_gettime() {
 int sys_getpid(){
 	return current()->PID;
 }
+
+int sys_block() {
+  struct task_struct* current_pcb = current();
+  struct task_struct* parent_pcb = current_pcb->parent;
+
+  //Si hi ha pending unblocks només es decrementa variable i return
+  if (current()->pending_unblocks > 0) {
+    current()->pending_unblocks--;
+    return 0;
+  }
+
+  //Afegim el proces a la blocked queue si el pare es diferent de idle (null)
+  if (parent_pcb != NULL) {
+    list_del(&(current_pcb->sibiling));   //Borrem de la llista actual
+    list_add_tail(&(current_pcb->sibiling), &(parent_pcb->children_blocked));   //Afegim a llista de blocked del pare
+  }
+
+  //Afegim el proces a la blocked queue i canviem de proces
+  update_process_state_rr(current_pcb, &blocked);
+  sched_next_rr();
+  return 0;
+ }
+
+ int sys_unblock(int pid) {
+  struct task_struct* parent_pcb = current();
+
+  //Recorrem tots els fills del pare per trobar el que té PID = pid
+  struct list_head* pos;
+  list_for_each(pos, &(parent_pcb->children_blocked)) {
+    struct task_struct* child = list_entry(pos, struct task_struct, sibiling);
+    if (child->PID == pid) {
+      list_del(&(child->sibiling));
+      list_add_tail(&(child->sibiling), &(parent_pcb->children_unblocked));
+      update_process_state_rr(child, &readyqueue);
+      return 0;
+    }
+  }
+
+  //Si no estaba en blocked alsehores augmentem el pendingUnblocks
+  list_for_each(pos, &(parent_pcb->children_unblocked)) {
+    struct task_struct* child = list_entry(pos, struct task_struct, sibiling);
+    if (child->PID == pid) {
+      child->pending_unblocks++;
+      return 0;
+    }
+  }
+
+  //Retornem -1 si no hem trobat el pid
+  return -1;
+ }
