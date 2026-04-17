@@ -256,6 +256,17 @@ void init_sched()
 
 }
 
+void schedule() {
+    if (!list_empty(&readyqueue)) {
+        struct list_head *lh = list_first(&readyqueue);
+        list_del(lh);
+        struct task_struct *next = list_head_to_task_struct(lh);
+        task_switch((union task_union*)next);
+    } else {
+        task_switch((union task_union*)idle_task);
+    }
+}
+
 
 /* get_DIR - Returns the Page Directory address for task 't' */
 
@@ -269,40 +280,14 @@ page_table_entry *get_DIR(struct task_struct *t)
 
 
 int allocate_DIR(struct task_struct *t)
-
 {
     int pos = ((int)t - (int)task) / sizeof(union task_union);
     t->dir_pages_baseAddr = (page_table_entry *)&dir_pages[pos];
+    
+    // Copy kernel mapping 
+    t->dir_pages_baseAddr[0] = current()->dir_pages_baseAddr[0];
+    
     return 1;
-    /*int pos;
-
-
-    pos = ((int)t - (int)task) / sizeof(union task_union);
-
-
-    t->dir_pages_baseAddr = (page_table_entry *)&dir_pages[pos]; // dir_pages esta declarado en mm.h, de momento no funciona
-
-                                                                 // hay que hacer que se guarden las tablas de paginas aqui
-
-
-    // 1. NUEVO: Limpiamos el directorio de páginas para que no tenga "basura"
-
-    clear_page_table(t->dir_pages_baseAddr);
-
-
-    // 2. NUEVO: Si init_task ya existe, todos los nuevos procesos deben
-
-    // compartir la misma tabla de kernel en la entrada 0.
-
-    if (init_task != NULL) {
-
-        t->dir_pages_baseAddr[0] = get_DIR(init_task)[0];
-
-    }
-
-
-    return 1;*/
-
 }
 
 

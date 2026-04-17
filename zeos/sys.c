@@ -75,71 +75,105 @@ int ret_from_fork(){
 }
 
 int pidGlobal = 100;
+
 int sys_fork(){
-	int num_pag_kernel = ((int)&last_kernel - (int)&first_kernel) >> 12; // Dividir por 4096 (PAGE_SIZE)
+  if (list_empty(&freequeue)) return -ENOMEM;
 
-	if(list_empty(&freequeue)) return -ENOMEM;
+  struct list_head *lh = list_first(&freequeue);
+  list_del(lh);
+  union task_union* child = (union task_union*)list_head_to_task_struct(lh);
+  
+  // Copiamos el stack y PCB del padre al hijo
+  copy_data(current(), child, sizeof(union task_union));
 
-	struct list_head *lh = list_first(&freequeue);
-	list_del(lh);
-	union task_union* child = list_head_to_task_struct(lh);
-	copy_data(current(), child, sizeof(union task_union));
+  // Inicializamos el directorio del hijo (hereda el kernel)
+  allocate_DIR(&child->task);
 
-	allocate_DIR((struct task_struct*) child);
-	
-	int numPaginas[NUM_PAG_DATA];
-	for(int frame = 0; frame < NUM_PAG_DATA; frame++) {
-		numPaginas[frame] = alloc_frame();
+  // Reservamos una tabla de páginas para el espacio de usuario del hijo
+  int child_ut_frame = alloc_frame();
+  if (child_ut_frame < 0) {
+      list_add_tail(&child->task.list, &freequeue);
+      return -EAGAIN;
+  }
+  page_table_entry *child_ut = (page_table_entry*)(child_ut_frame << 12);
+  clear_page_table(child_ut);
 
-		if(numPaginas[frame] < 0) {			//Si no tenemos suficiente espacio
-			for(int i = 0; i < frame; i++) free_frame(numPaginas[i]);
+  // Enlazamos la tabla de usuario al directorio del hijo (entrada 1)
+  set_ss_pag(get_DIR(&child->task), 1, child_ut_frame, 1);
 
-			list_add_tail(&child->task.list, &freequeue);
+  // Obtenemos las tablas de usuario de padre e hijo
+  page_table_entry *parent_ut = (page_table_entry*)(get_DIR(current())[1].bits.pbase_addr << 12);
+  
+  // 1. Compartir páginas de código (solo lectura)
+  for (int i = 0; i < NUM_PAG_CODE; i++) {
+    int frame = get_frame(parent_ut, NUM_PAG_DATA + i);
+    set_ss_pag(child_ut, NUM_PAG_DATA + i, frame, 1);
+  }
 
-			return -EAGAIN;
-		}
-	}
-	printk("Llego");
-	//Paginas del hijo creadas
-	page_table_entry *child_pt = get_PT(&(child->task));
-	printk("Llego1");
-	page_table_entry *parent_pt = get_PT(current());
-printk("Llego2");
-	//Para que padre e hijo compartan paginas físicas de código
-	for(int page = 0; page < NUM_PAG_CODE; page++) {
-		set_ss_pag(child_pt, PAG_LOG_INIT_CODE + page, get_frame(parent_pt, PAG_LOG_INIT_CODE + page), 1);
-	}
-printk("Llego");
-	//Para que padre e hijo compartan memoria de sistema
-	for(int page = 0; page < num_pag_kernel; page++) {
-		set_ss_pag(child_pt, page, get_frame(parent_pt, page), 1);
-	}
-printk("Llego");
-	//Mapeo de data + stack del child
-	for(int page = 0; page < NUM_PAG_DATA; page++) {
-		set_ss_pag(child_pt, PAG_LOG_INIT_DATA + page, numPaginas[page], 1);
-	}
-printk("Llego");
-	int TOTAL_SPACE = num_pag_kernel + NUM_PAG_DATA + NUM_PAG_CODE;
-	for(int page = 0; page < NUM_PAG_DATA; page++) {
-		set_ss_pag(parent_pt, page + TOTAL_SPACE, get_frame(child_pt, PAG_LOG_INIT_DATA + page), 0);
-		copy_data((void *)((PAG_LOG_INIT_DATA + page) << 12), (void *)((TOTAL_SPACE + page) << 12), PAGE_SIZE);
-		del_ss_pag(parent_pt, TOTAL_SPACE + page);
-	}
-	set_cr3(get_DIR(current()));		//Flush del TLB
+  // 2. Copiar páginas de datos (nuevos frames)
+  int frames_data[NUM_PAG_DATA];
+  for (int i = 0; i < NUM_PAG_DATA; i++) {
+    frames_data[i] = alloc_frame();
+    if (frames_data[i] < 0) {
+      // Error: liberar lo reservado
+      for (int j = 0; j < i; j++) free_frame(frames_data[j]);
+      free_frame(child_ut_frame);
+      list_add_tail(&child->task.list, &freequeue);
+      return -EAGAIN;
+    }
+    // Mapeamos en el hijo
+    set_ss_pag(child_ut, i, frames_data[i], 1);
+  }
 
-	child->task.PID = ++pidGlobal;
-	child->task.quantum = 100;
+  // 3. Copia física de los datos usando un mapeo temporal en el padre
+  for (int i = 0; i < NUM_PAG_DATA; i++) {
+      // Usamos una página libre del kernel (ej: 512) para mapear temporalmente el frame del hijo
+      set_ss_pag(get_PT(current()), 512, frames_data[i], 0);
+      set_cr3(get_DIR(current())); // Flush TLB para activar mapeo temporal
+      
+      // Copiamos de la dirección lógica del padre (4MB + i*4KB) a la temporal
+      copy_data((void*)((1024 + i) << 12), (void*)(512 << 12), PAGE_SIZE);
+      
+      // Desmapeamos temporal
+      del_ss_pag(get_PT(current()), 512);
+  }
+  set_cr3(get_DIR(current())); // Flush final
 
-	/*Para que el nuevo proceso funcione con task_switch preparamos la pila (ponemos algo en ebp, @RET, kernel_esp-->@handler)*/
-	((unsigned long *)KERNEL_ESP(child))[-0x13] = (unsigned long) 0;						//%ebp = $0
-	((unsigned long *)KERNEL_ESP(child))[-0x12] = (unsigned long) ret_from_fork;			//@RET = ret_from_fork
-	child->task.kernel_esp = (unsigned long) &(child->stack[KERNEL_STACK_SIZE - 19]); 		//Kernel_esp = top de la pila
+  // Configuración de PID y Quantum
+  child->task.PID = ++pidGlobal;
+  child->task.quantum = 100;
 
-	/*POR AÑADIR LO DEL BLOCKED Y UNBLOCKED*/
+  // Preparar la pila para task_switch (ebp, ret_from_fork)
+  // El layout esperado por cambio_pila y task_switch:
+  // [Contexto syscall/interrupción] <- 16 regs
+  // [Return address a entry.S]      <- 17
+  // [ret_from_fork]                 <- 18
+  // [ebp=0]                         <- 19
+  
+  ((unsigned long *)KERNEL_ESP(child))[-19] = (unsigned long) 0;			// %ebp
+  ((unsigned long *)KERNEL_ESP(child))[-18] = (unsigned long) ret_from_fork;	// @RET
+  child->task.kernel_esp = (unsigned long) &(child->stack[KERNEL_STACK_SIZE - 19]);
 
-	list_add_tail(&(child->task.list), &readyqueue);		//Añadimos al child a la ready queue
-	return child->task.PID;
+  list_add_tail(&(child->task.list), &readyqueue);
+  return child->task.PID;
+}
+
+void sys_exit() {
+    struct task_struct *curr = current();
+    
+    // 1. Liberar páginas de datos
+    page_table_entry *ut = (page_table_entry*)(get_DIR(curr)[1].bits.pbase_addr << 12);
+    free_user_pages(ut);
+    
+    // 2. Liberar tabla de páginas de usuario
+    free_frame(get_DIR(curr)[1].bits.pbase_addr);
+    get_DIR(curr)[1].entry = 0;
+    
+    // 3. Liberar el PCB
+    list_add_tail(&curr->list, &freequeue);
+    
+    // 4. Cambiar a otro proceso
+    schedule();
 }
 
 int sys_gettime() {

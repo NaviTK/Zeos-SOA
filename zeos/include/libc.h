@@ -13,6 +13,7 @@ int strlen(char *a);
 int write(int fd, char *buffer, int size);
 int gettime();
 int getpid();
+void exit();
 
 void perror();
 
