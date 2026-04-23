@@ -16,8 +16,7 @@
 #include <interrupt.h>
 #include <utils.h>
 
-union task_union task[NR_TASKS]
-    __attribute__((__section__(".data.task"), __aligned__(4096)));
+// union task_union task[NR_TASKS] no longer needed
 
 // 2. Alineamos la pila de sistema a 4KB
 unsigned long initial_stack[KERNEL_STACK_SIZE] 
@@ -28,7 +27,7 @@ struct task_struct *init_task;
 struct task_struct *idle_task;
 
 extern struct list_head blocked;
-struct list_head freequeue;
+struct list_head list_tasks;
 
 struct list_head readyqueue;
 int remaining_quantum;
@@ -44,6 +43,24 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 }
 
 #endif
+
+struct task_struct *alloc_pcb()
+{
+  int frame = alloc_frame();
+  if (frame < 0) return NULL;
+  
+  struct task_struct *p = (struct task_struct *)(frame << 12);
+  INIT_LIST_HEAD(&p->task_list);
+  list_add_tail(&p->task_list, &list_tasks);
+  
+  return p;
+}
+
+void free_pcb(struct task_struct *p)
+{
+  list_del(&p->task_list);
+  free_frame(((unsigned long)p) >> 12);
+}
 
 
 void writeMSR(unsigned long msr, unsigned long valor);
@@ -88,27 +105,16 @@ void init_idle(void)
 
 {
 
-    // Paso 4: Asignar un nuevo struct task_struct.
+    // Paso 4: Asignar un nuevo struct task_struct dinámicamente.
+    struct task_struct *PCB = alloc_pcb();
 
-    // Usamos la freequeue estándar (como tenías comentado en init_task1)
-
-    struct list_head *l = list_first(&freequeue);
-
-    list_del(l);
-
-    struct task_struct *PCB = list_head_to_task_struct(l);
-
-	//Inicialitzem les variables per block i unblock
+	// Inicialitzem les variables per block i unblock
 	PCB->parent = NULL;
 	INIT_LIST_HEAD(&(PCB->children_blocked));
 	INIT_LIST_HEAD(&(PCB->children_unblocked));
 	PCB->pending_unblocks = 0;
-    // Pasos 1, 2 y 5: Crear espacio de direcciones (solo directorio)
 
-    // y asignar a dir_pages_baseAddr. La macro/función allocate_DIR
-
-    // de ZeOS se encarga de esto y reutiliza la tabla del sistema.
-
+    // Crear espacio de direcciones (solo directorio) dinámicamente
     allocate_DIR(PCB);
 
 
@@ -165,10 +171,8 @@ IDPF ==> 20 bits de id y 12 bits a 0
 */
 void init_task1(void)
 {
-    // 1. Sacamos un PCB válido de la freequeue
-    struct list_head *lh = list_first(&freequeue);
-    list_del(lh);
-    struct task_struct *pcb = list_head_to_task_struct(lh);
+    // 1. Sacamos un PCB válido
+    struct task_struct *pcb = alloc_pcb();
 
     pcb->PID = 1;
     set_quantum(pcb, 10);
@@ -178,6 +182,7 @@ void init_task1(void)
 	INIT_LIST_HEAD(&(pcb->children_unblocked));
 	INIT_LIST_HEAD(&(pcb->sibiling));
 	pcb->pending_unblocks = 0;
+    
     // ========================================================
     // BLOQUE INMODIFICABLE INICIO
     // ========================================================
@@ -250,20 +255,9 @@ void init_sched()
 
 {
 
-    // Inicialitzem freequeue
-
-    INIT_LIST_HEAD(&freequeue);
-
+    // Inicialitzem list_tasks
+    INIT_LIST_HEAD(&list_tasks);
     INIT_LIST_HEAD(&readyqueue);
-
-    // cuando tengamos blocked INIT_LIST_HEAD(&blocked);
-
-    //  Recorre vector de tasks per afegir tots en freeequeue
-
-    for (int i = 1; i < NR_TASKS; ++i)
-
-        list_add(&(task[i].task.list), &freequeue);
-
 }
 
 void schedule(void) {
@@ -322,12 +316,15 @@ page_table_entry *get_DIR(struct task_struct *t)
 
 int allocate_DIR(struct task_struct *t)
 {
-    int pos = ((int)t - (int)task) / sizeof(union task_union);
-    t->dir_pages_baseAddr = (page_table_entry *)&dir_pages[pos];
-    
-    // Copy kernel mapping 
+    int frame = alloc_frame();
+    if (frame < 0) return -1;
+
+    t->dir_pages_baseAddr = (page_table_entry *)(frame << 12);
+    clear_page_table(t->dir_pages_baseAddr);
+
+    // Copy kernel mapping
     t->dir_pages_baseAddr[0] = current()->dir_pages_baseAddr[0];
-    
+
     return 1;
 }
 

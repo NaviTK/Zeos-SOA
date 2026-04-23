@@ -31,7 +31,6 @@ Register    gdtR;
 /* TSS */
 TSS         tss; 
 
-page_table_entry dir_pages[NR_TASKS][TOTAL_PAGES] __attribute__((__aligned__(4096)));
 
 extern char* itoa(int, char*);
 

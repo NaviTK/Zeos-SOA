@@ -28,6 +28,7 @@ struct task_struct {
   unsigned long kernel_esp; // pila del sistema
 
   struct task_struct* parent; // punter al pare
+  struct list_head task_list; // llista de tots els processos
 };
 
 union task_union {
@@ -59,6 +60,10 @@ void set_quantum(struct task_struct *t, int new_quantum);
 
 extern struct task_struct *idle_task;
 extern struct task_struct *init_task;
+extern struct list_head list_tasks;
+
+struct task_struct *alloc_pcb();
+void free_pcb(struct task_struct *p);
 
 void task_switch(union task_union *new);
 

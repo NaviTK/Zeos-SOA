@@ -20,7 +20,6 @@
 
 extern int zeos_ticks;
 extern struct list_head blocked;
-extern struct list_head freequeue;
 extern struct list_head readyqueue;
 extern int last_kernel;
 extern int first_kernel;
@@ -78,11 +77,9 @@ int ret_from_fork(){
 int pidGlobal = 100;
 
 int sys_fork(){
-  if (list_empty(&freequeue)) return -ENOMEM;
-
-  struct list_head *lh = list_first(&freequeue);
-  list_del(lh);
-  union task_union* child = (union task_union*)list_head_to_task_struct(lh);
+  struct task_struct *pcb_child = alloc_pcb();
+  if (pcb_child == NULL) return -ENOMEM;
+  union task_union* child = (union task_union*)pcb_child;
   
   // Copiamos el stack y PCB del padre al hijo
   copy_data(current(), child, sizeof(union task_union));
@@ -93,7 +90,7 @@ int sys_fork(){
   // Reservamos una tabla de páginas para el espacio de usuario del hijo
   int child_ut_frame = alloc_frame();
   if (child_ut_frame < 0) {
-      list_add_tail(&child->task.list, &freequeue);
+      free_pcb(pcb_child);
       return -EAGAIN;
   }
   page_table_entry *child_ut = (page_table_entry*)(child_ut_frame << 12);
@@ -119,7 +116,7 @@ int sys_fork(){
       // Error: liberar lo reservado
       for (int j = 0; j < i; j++) free_frame(frames_data[j]);
       free_frame(child_ut_frame);
-      list_add_tail(&child->task.list, &freequeue);
+      free_pcb(pcb_child);
       return -EAGAIN;
     }
     // Mapeamos en el hijo
@@ -193,7 +190,11 @@ void sys_exit() {
     }
 
     // Liberar el PCB
-    list_add_tail(&curr->list, &freequeue);
+    // 3. Liberar el directorio
+    free_frame(((unsigned long)curr->dir_pages_baseAddr) >> 12);
+
+    // 4. Liberar el PCB
+    free_pcb(curr);
     
     // 4. Cambiar a otro proceso
     sched_next_rr();
