@@ -29,6 +29,11 @@ struct task_struct {
 
   struct task_struct* parent; // punter al pare
   struct list_head task_list; // llista de tots els processos
+
+  /* read() blocking state */
+  int   kbd_chars_needed; /* chars still needed before waking up */
+  char *kbd_user_buf;     /* user-space destination buffer        */
+  int   kbd_read_result;  /* return value set by the ISR wake-up  */
 };
 
 union task_union {

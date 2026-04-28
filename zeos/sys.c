@@ -21,6 +21,7 @@
 extern int zeos_ticks;
 extern struct list_head blocked;
 extern struct list_head readyqueue;
+extern struct list_head kbd_blocked;
 extern int last_kernel;
 extern int first_kernel;
 
@@ -202,6 +203,31 @@ void sys_exit() {
 
 int sys_gettime() {
   	return zeos_ticks;
+}
+
+int sys_read(char *b, int maxchars)
+{
+  /* --- Parameter validation --- */
+  if (b == NULL) return -EFAULT;
+  if (maxchars <= 0) return -EINVAL;
+  if (!access_ok(VERIFY_WRITE, b, maxchars)) return -EFAULT;
+
+  /* --- Try to serve immediately from the buffer --- */
+  int got = kbd_buf_read(b, maxchars);
+  if (got > 0) return got;
+
+  /* --- Nothing available yet: block until enough chars arrive --- */
+  struct task_struct *curr = current();
+  curr->kbd_chars_needed = maxchars;
+  curr->kbd_user_buf     = b;
+  curr->kbd_read_result  = 0;
+
+  /* Move to kbd_blocked queue */
+  update_process_state_rr(curr, &kbd_blocked);
+  sched_next_rr();            /* context-switch away; returns when woken */
+
+  /* We are back with our own CR3 active — safe to copy to user space now */
+  return kbd_buf_read(b, maxchars);
 }
 
 int sys_getpid(){

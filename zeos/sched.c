@@ -15,6 +15,7 @@
 
 #include <interrupt.h>
 #include <utils.h>
+#include <devices.h>
 
 // union task_union task[NR_TASKS] no longer needed
 
@@ -258,6 +259,8 @@ void init_sched()
     // Inicialitzem list_tasks
     INIT_LIST_HEAD(&list_tasks);
     INIT_LIST_HEAD(&readyqueue);
+    INIT_LIST_HEAD(&blocked);
+    INIT_LIST_HEAD(&kbd_blocked);
 }
 
 void schedule(void) {

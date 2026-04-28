@@ -6,6 +6,7 @@
 #include <segment.h>
 #include <hardware.h>
 #include <io.h>
+#include <devices.h>
 
 #include <zeos_interrupt.h>
 
@@ -111,7 +112,10 @@ void keyboard_routine(){
   int isbreak = pv & 0x80;
   if(isbreak == 0){ // isbreak == false -> make
     char toprint = char_map[pv & 0x7F];
-    printc_xy(70, 20, toprint); // la pantalla hace 80/25
+    if (toprint != '\0') {
+      printc_xy(70, 20, toprint); // visual echo on screen
+      kbd_buf_write(toprint);     // feed the circular buffer
+    }
   }
 }
 

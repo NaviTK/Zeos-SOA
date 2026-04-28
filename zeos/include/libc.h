@@ -11,10 +11,13 @@ void itoa(int a, char *b);
 int strlen(char *a);
 
 int write(int fd, char *buffer, int size);
+int read(char *b, int maxchars);
 int gettime();
 int getpid();
 void exit();
 int fork();
 void perror();
+int block();
+int unblock(int pid);
 
 #endif  /* __LIBC_H__ */
