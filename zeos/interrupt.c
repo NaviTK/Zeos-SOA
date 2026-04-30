@@ -113,8 +113,8 @@ void keyboard_routine(){
   if(isbreak == 0){ // isbreak == false -> make
     char toprint = char_map[pv & 0x7F];
     if (toprint != '\0') {
-      printc_xy(70, 20, toprint); // visual echo on screen
-      kbd_buf_write(toprint);     // feed the circular buffer
+      //printc_xy(70, 20, toprint); // para debugar
+      kbd_buf_write(toprint);     // metemos el caracter en el buffer circular
     }
   }
 }
