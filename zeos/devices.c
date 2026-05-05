@@ -50,6 +50,17 @@ int kbd_buf_read(char *dst, int n)
 }
 
 /* -------------------------------------------------------------------
+ * kbd_buf_flush — discard all characters in the circular buffer.
+ * Useful to drain leftover chars from keyboard auto-repeat.
+ * ------------------------------------------------------------------- */
+void kbd_buf_flush(void)
+{
+  kbd_head = 0;
+  kbd_tail = 0;
+  kbd_count = 0;
+}
+
+/* -------------------------------------------------------------------
  * kbd_buf_write — enqueue one character produced by the keyboard ISR.
  * After inserting, check whether the first blocked reader now has
  * enough characters; if so, copy them to user space and wake it up.

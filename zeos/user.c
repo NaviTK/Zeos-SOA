@@ -40,6 +40,9 @@ main(void)
         } else if (choice == '3') {
             write(1, "\n--- Multi-process read() test ---\n", 35);
 
+            /* Flush leftover chars from keyboard auto-repeat */
+            read(buf, 0);
+
             /* Fork child 1: wants 3 chars */
             int pid1 = fork();
             if (pid1 == 0) {
@@ -82,14 +85,15 @@ main(void)
                 exit();
             }
 
-            /* PARENT: report what was forked */
-            write(1, "Parent forked PID=", 18);
-            itoa(pid1, num);
-            write(1, num, strlen(num));
-            write(1, " and PID=", 9);
-            itoa(pid2, num);
-            write(1, num, strlen(num));
-            write(1, "\nType chars to wake them up!\n", 28);
+            /* yield para que el padre no se bloquee antes que los hijos */
+            int t = gettime();
+            while (gettime() - t < 200) {}
+
+            write(1, "Press 1 more key after to return to menu.\n", 42);
+
+            /* Parent blocks here LAST in kbd_blocked.
+             * Children wake first (3 then 5 chars), then parent (1 char). */
+            read(buf, 1);
         }
     }
 }

@@ -223,7 +223,8 @@ int sys_read(char *b, int maxchars)
 {
   /* --- Parameter validation --- */
   if (b == NULL) return -EFAULT;
-  if (maxchars <= 0) return -EINVAL;
+  if (maxchars < 0) return -EINVAL;
+  if (maxchars == 0) { kbd_buf_flush(); return 0; } /* special: flush buffer */
   if (!access_ok(VERIFY_WRITE, b, maxchars)) return -EFAULT;
 
   int to_read = (maxchars > BUFF_SIZE) ? BUFF_SIZE : maxchars;
