@@ -42,7 +42,7 @@ extern char* itoa(int, char*);
 void clear_page_table(page_table_entry* process_PT)
 {
   int i;
-  for (i=0; i<TOTAL_PAGES; i++) {
+  for (i=0; i<PT_ENTRIES; i++) {
     process_PT[i].entry = 0;
   }
 }
@@ -79,14 +79,14 @@ void set_kernel_pages (page_table_entry* process_PT)
 {
   int i;
   /* Init kernel pages */
-  for (i=0; i<TOTAL_PAGES; i++) { // Logical page equal to physical page (frame)
+  for (i=0; i<PT_ENTRIES; i++) { // Logical page equal to physical page (frame)
     set_ss_pag(process_PT, i, i, 0);
   }
   set_ss_pag(process_PT, 0x90, 0x90, 0); /* 0x90000 Mapped GDT */
   set_ss_pag(process_PT, 0xb8, 0xb8, 0); /* 0xb8000 Mapped screen */
 
   printk("\n");
-  show_PT_range(process_PT, 0, TOTAL_PAGES, " Identity mapped physical memory\n");
+  show_PT_range(process_PT, 0, PT_ENTRIES, " Identity mapped physical memory\n");
 }
 
 /* Enable paging, modifying the CR0 register */
@@ -176,7 +176,11 @@ int init_frames( void )
 
     // Special pages used by bootsect or devices...
     phys_mem[0x90] = USED_FRAME; /* 0x90000 GDT */
-    phys_mem[0xb8] = USED_FRAME; /* 0xb8000 screen */
+
+    /* 0xA0000-0xBFFFF pantalla, 0xC0000-0xFFFFF BIOS */
+    for (i = 0xA0; i < 0x100; i++) {
+        phys_mem[i] = USED_FRAME;
+    }
     return 0;
 }
 

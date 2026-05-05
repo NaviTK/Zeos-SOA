@@ -24,6 +24,20 @@ extern struct list_head readyqueue;
 extern struct list_head kbd_blocked;
 extern int last_kernel;
 extern int first_kernel;
+extern Byte phys_mem[TOTAL_PAGES];
+
+int sys_get_stats(int type) {
+    if (type == 0) return TOTAL_PAGES;
+    if (type == 1) {
+        int count = 0;
+        for (int i = 0; i < TOTAL_PAGES; i++) {
+            if (phys_mem[i] == 1 /* USED_FRAME */) continue;
+            count++;
+        }
+        return count;
+    }
+    return -EINVAL;
+}
 
 
 int check_fd(int fd, int permissions)

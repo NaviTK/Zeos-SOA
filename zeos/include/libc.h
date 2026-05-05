@@ -19,5 +19,6 @@ int fork();
 void perror();
 int block();
 int unblock(int pid);
+int get_stats(int type);
 
 #endif  /* __LIBC_H__ */

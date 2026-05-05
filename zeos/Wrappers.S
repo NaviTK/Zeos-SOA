@@ -329,3 +329,38 @@ read_return:
 read_no_error:
     popl %ebp
     ret
+
+ENTRY(get_stats)
+    pushl %ebp
+    movl %esp, %ebp
+
+    mov 0x08(%ebp), %edx
+
+    pushl %ecx
+    pushl %edx
+
+    movl $35, %eax
+
+    pushl $get_stats_return
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+get_stats_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax
+    jge get_stats_no_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+get_stats_no_error:
+    popl %ebp
+    ret
+
