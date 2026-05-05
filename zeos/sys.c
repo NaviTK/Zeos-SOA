@@ -226,13 +226,18 @@ int sys_read(char *b, int maxchars)
   if (maxchars <= 0) return -EINVAL;
   if (!access_ok(VERIFY_WRITE, b, maxchars)) return -EFAULT;
 
+  int to_read = (maxchars > BUFF_SIZE) ? BUFF_SIZE : maxchars;
+
   /* --- Try to serve immediately from the buffer --- */
-  int got = kbd_buf_read(b, maxchars);
-  if (got > 0) return got;
+  int got = kbd_buf_read(buffer_sys, to_read);
+  if (got > 0) {
+    copy_to_user(buffer_sys, b, got);
+    return got;
+  }
 
   /* --- Nothing available yet: block until enough chars arrive --- */
   struct task_struct *curr = current();
-  curr->kbd_chars_needed = maxchars;
+  curr->kbd_chars_needed = to_read;
   curr->kbd_user_buf     = b;
   curr->kbd_read_result  = 0;
 
@@ -240,8 +245,12 @@ int sys_read(char *b, int maxchars)
   update_process_state_rr(curr, &kbd_blocked);
   sched_next_rr();            /* context-switch away; returns when woken */
 
-  /* We are back with our own CR3 active — safe to copy to user space now */
-  return kbd_buf_read(b, maxchars);
+  /* We are back with our own CR3 active — read into kernel buffer, then copy to user */
+  got = kbd_buf_read(buffer_sys, to_read);
+  if (got > 0) {
+    copy_to_user(buffer_sys, b, got);
+  }
+  return got;
 }
 
 int sys_getpid(){
