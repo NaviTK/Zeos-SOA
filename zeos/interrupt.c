@@ -120,8 +120,8 @@ void keyboard_routine(){
 }
 
 void clock_routine(void) {
-	zeos_ticks++;
-	zeos_show_clock();
+	zeos_ticks += 1;
+	if (zeos_ticks % 18 == 0) zeos_show_clock();
 
   schedule(); //IMPLEMENTAR Y DESCOMENTAR CUANDO SE TENGA EN CUENTA EL QUANTUM
 
