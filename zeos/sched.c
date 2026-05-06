@@ -27,6 +27,8 @@ struct task_struct *init_task;
 
 struct task_struct *idle_task;
 
+page_table_entry *kernel_page_table = 0; // TP de sistema (so_TP), se inicializa en init_task1
+
 extern struct list_head blocked;
 struct list_head list_tasks;
 
@@ -49,6 +51,9 @@ struct task_struct *alloc_pcb()
 {
   int frame = alloc_frame();
   if (frame < 0) return NULL;
+  
+  // Mapear el frame en la TP de sistema si paging está activo
+  if (kernel_page_table) set_ss_pag(kernel_page_table, frame, frame, 0);
   
   struct task_struct *p = (struct task_struct *)(frame << 12);
   INIT_LIST_HEAD(&p->task_list);
@@ -193,10 +198,12 @@ void init_task1(void)
 
     int so = alloc_frame();
     page_table_entry *so_TP = (page_table_entry *)(so << 12);
+    clear_page_table(so_TP);
     set_kernel_pages(so_TP);
 
     int user = alloc_frame();
     page_table_entry *user_TP = (page_table_entry *)(user << 12);
+    clear_page_table(user_TP);
     set_user_pages(user_TP);
 
     set_ss_pag(init_TP, Dir, Dir, 0);
@@ -208,6 +215,15 @@ void init_task1(void)
     // ========================================================
     // BLOQUE INMODIFICABLE FIN
     // ========================================================
+
+    // Mapear páginas dinámicas en la TP de sistema (so_TP)
+    set_ss_pag(so_TP, (int)idle_task >> 12, (int)idle_task >> 12, 0);       // PCB/stack de idle
+    set_ss_pag(so_TP, (int)pcb >> 12, (int)pcb >> 12, 0);                  // PCB/stack de init
+    set_ss_pag(so_TP, Dir, Dir, 0);                                         // directorio de init
+    set_ss_pag(so_TP, (int)get_DIR(idle_task) >> 12, (int)get_DIR(idle_task) >> 12, 0); // directorio de idle
+
+    // Guardar la TP de sistema para mapeos futuros (fork, etc.)
+    kernel_page_table = so_TP;
 
     // 2. Asignamos la tabla de páginas
     pcb->dir_pages_baseAddr = init_TP;
@@ -230,6 +246,7 @@ void init_task1(void)
 }
 
 void inner_task_switch(union task_union *t) {
+    if (t == (union task_union*)current()) return; // No hacer switch a sí mismo
     tss.esp0 = KERNEL_ESP(t);
     writeMSR(0x175, (int)tss.esp0);
     set_cr3(t->task.dir_pages_baseAddr);
@@ -321,6 +338,9 @@ int allocate_DIR(struct task_struct *t)
 {
     int frame = alloc_frame();
     if (frame < 0) return -1;
+
+    // Mapear el frame en la TP de sistema si paging está activo
+    if (kernel_page_table) set_ss_pag(kernel_page_table, frame, frame, 0);
 
     t->dir_pages_baseAddr = (page_table_entry *)(frame << 12);
     clear_page_table(t->dir_pages_baseAddr);

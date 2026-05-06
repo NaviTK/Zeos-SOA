@@ -8,8 +8,6 @@ main(void)
     char num[16];
 
     while (1) {
-        write(1, "\ntest: \n", 6);
-        block();
         write(1, "\ncomprobar uso de read (m2) pulsa 1: \n", 38);
         write(1, "comprobar cambio a 2048 pages (m3) pulsa 2: \n", 45);
         write(1, "test read multiproceso (m2) pulsa 3: \n", 38);

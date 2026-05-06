@@ -79,14 +79,16 @@ void set_kernel_pages (page_table_entry* process_PT)
 {
   int i;
   /* Init kernel pages */
-  for (i=0; i<PT_ENTRIES; i++) { // Logical page equal to physical page (frame)
+  for (i=first_kernel; i<last_kernel; i++) { // Logical page equal to physical page (frame)
     set_ss_pag(process_PT, i, i, 0);
   }
   set_ss_pag(process_PT, 0x90, 0x90, 0); /* 0x90000 Mapped GDT */
   set_ss_pag(process_PT, 0xb8, 0xb8, 0); /* 0xb8000 Mapped screen */
 
   printk("\n");
-  show_PT_range(process_PT, 0, PT_ENTRIES, " Identity mapped physical memory\n");
+  show_PT_range(process_PT, first_kernel, last_kernel-first_kernel+1, " Reserved for kernel memory\n");
+  show_PT_range(process_PT, 0x90, 1, " Reserved for GDT\n");
+  show_PT_range(process_PT, 0xb8, 1, " Reserved for Screen buffer\n");
 }
 
 /* Enable paging, modifying the CR0 register */

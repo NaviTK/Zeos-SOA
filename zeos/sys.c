@@ -108,6 +108,10 @@ int sys_fork(){
       free_pcb(pcb_child);
       return -EAGAIN;
   }
+  
+  // Mapear el frame en la TP de sistema si paging está activo
+  if (kernel_page_table) set_ss_pag(kernel_page_table, child_ut_frame, child_ut_frame, 0);
+
   page_table_entry *child_ut = (page_table_entry*)(child_ut_frame << 12);
   clear_page_table(child_ut);
 
@@ -198,15 +202,11 @@ void sys_exit() {
     // 2. Liberar tabla de páginas de usuario
     free_frame(get_DIR(curr)[1].bits.pbase_addr);
     get_DIR(curr)[1].entry = 0;
-    
-    for (int page = 0; page < NUM_PAG_DATA; page++){
-      free_frame(get_frame(ut, PAG_LOG_INIT_DATA + page));
-      del_ss_pag(ut, PAG_LOG_INIT_DATA + page);
-    }
 
     // Liberar el PCB
     // 3. Liberar el directorio
     free_frame(((unsigned long)curr->dir_pages_baseAddr) >> 12);
+
 
     // 4. Liberar el PCB
     free_pcb(curr);
