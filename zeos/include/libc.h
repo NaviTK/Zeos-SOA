@@ -7,6 +7,7 @@
 #define __LIBC_H__
 
 void itoa(int a, char *b);
+void itoa_hex(int a, char *b);
 
 int strlen(char *a);
 
