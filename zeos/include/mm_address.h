@@ -14,7 +14,7 @@
 
 
 #define KERNEL_START     0x10000
-#define L_USER_START        0x400000
+#define L_USER_START        0x800000
 #define USER_ESP	L_USER_START+(NUM_PAG_DATA)*0x1000
 
 #define PAGE(x) (x>>12)

@@ -67,6 +67,7 @@ extern struct task_struct *idle_task;
 extern struct task_struct *init_task;
 extern struct list_head list_tasks;
 extern page_table_entry *kernel_page_table;
+extern page_table_entry *kernel_page_table2;
 
 struct task_struct *alloc_pcb();
 void free_pcb(struct task_struct *p);

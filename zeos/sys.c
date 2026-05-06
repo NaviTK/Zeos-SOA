@@ -109,17 +109,20 @@ int sys_fork(){
       return -EAGAIN;
   }
   
-  // Mapear el frame en la TP de sistema si paging está activo
-  if (kernel_page_table) set_ss_pag(kernel_page_table, child_ut_frame, child_ut_frame, 0);
+  // Mapear el frame en la TP de sistema correspondiente si paging está activo
+  if (kernel_page_table) {
+      if (child_ut_frame < 1024) set_ss_pag(kernel_page_table, child_ut_frame, child_ut_frame, 0);
+      else if (kernel_page_table2) set_ss_pag(kernel_page_table2, child_ut_frame - 1024, child_ut_frame, 0);
+  }
 
   page_table_entry *child_ut = (page_table_entry*)(child_ut_frame << 12);
   clear_page_table(child_ut);
 
-  // Enlazamos la tabla de usuario al directorio del hijo (entrada 1)
-  set_ss_pag(get_DIR(&child->task), 1, child_ut_frame, 1);
+  // Enlazamos la tabla de usuario al directorio del hijo (entrada 2 para M3)
+  set_ss_pag(get_DIR(&child->task), 2, child_ut_frame, 1);
 
   // Obtenemos las tablas de usuario de padre e hijo
-  page_table_entry *parent_ut = (page_table_entry*)(get_DIR(current())[1].bits.pbase_addr << 12);
+  page_table_entry *parent_ut = (page_table_entry*)(get_DIR(current())[2].bits.pbase_addr << 12);
   
   // 1. Compartir páginas de código (solo lectura)
   for (int i = 0; i < NUM_PAG_CODE; i++) {
@@ -148,8 +151,9 @@ int sys_fork(){
       set_ss_pag(get_PT(current()), 512, frames_data[i], 0);
       set_cr3(get_DIR(current())); // Flush TLB para activar mapeo temporal
       
-      // Copiamos de la dirección lógica del padre (4MB + i*4KB) a la temporal
-      copy_data((void*)((1024 + i) << 12), (void*)(512 << 12), PAGE_SIZE);
+      // Copiamos de la dirección lógica del padre (8MB + i*4KB) a la temporal
+      // 8MB >> 12 = 2048
+      copy_data((void*)((2048 + i) << 12), (void*)(512 << 12), PAGE_SIZE);
       
       // Desmapeamos temporal
       del_ss_pag(get_PT(current()), 512);
@@ -195,13 +199,13 @@ int sys_fork(){
 void sys_exit() {
     struct task_struct *curr = current();
     
-    // 1. Liberar páginas de datos
-    page_table_entry *ut = (page_table_entry*)(get_DIR(curr)[1].bits.pbase_addr << 12);
+    // 1. Liberar páginas de datos (frames físicos)
+    page_table_entry *ut = (page_table_entry*)(get_DIR(curr)[2].bits.pbase_addr << 12);
     free_user_pages(ut);
     
-    // 2. Liberar tabla de páginas de usuario
-    free_frame(get_DIR(curr)[1].bits.pbase_addr);
-    get_DIR(curr)[1].entry = 0;
+    // 2. Liberar tabla de páginas de usuario (el frame de la TP en sí)
+    free_frame(get_DIR(curr)[2].bits.pbase_addr);
+    get_DIR(curr)[2].entry = 0;
 
     // Liberar el PCB
     // 3. Liberar el directorio

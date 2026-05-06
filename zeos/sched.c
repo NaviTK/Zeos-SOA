@@ -27,13 +27,20 @@ struct task_struct *init_task;
 
 struct task_struct *idle_task;
 
-page_table_entry *kernel_page_table = 0; // TP de sistema (so_TP), se inicializa en init_task1
+page_table_entry *kernel_page_table = 0; // TP de sistema 1 (frames 0-1023)
+page_table_entry *kernel_page_table2 = 0; // TP de sistema 2 (frames 1024-2047)
 
 extern struct list_head blocked;
 struct list_head list_tasks;
 
 struct list_head readyqueue;
 int remaining_quantum;
+
+void auto_map_kernel_frame(int frame, page_table_entry *tp1, page_table_entry *tp2)
+{
+    if (frame < 1024) set_ss_pag(tp1, frame, frame, 0);
+    else if (tp2) set_ss_pag(tp2, frame - 1024, frame, 0);
+}
 
 #if 1
 
@@ -52,8 +59,11 @@ struct task_struct *alloc_pcb()
   int frame = alloc_frame();
   if (frame < 0) return NULL;
   
-  // Mapear el frame en la TP de sistema si paging está activo
-  if (kernel_page_table) set_ss_pag(kernel_page_table, frame, frame, 0);
+  // Mapear el frame en la TP de sistema correspondiente si paging está activo
+  if (kernel_page_table) {
+      if (frame < 1024) set_ss_pag(kernel_page_table, frame, frame, 0);
+      else if (kernel_page_table2) set_ss_pag(kernel_page_table2, frame - 1024, frame, 0);
+  }
   
   struct task_struct *p = (struct task_struct *)(frame << 12);
   INIT_LIST_HEAD(&p->task_list);
@@ -190,54 +200,68 @@ void init_task1(void)
 	pcb->pending_unblocks = 0;
     
     // ========================================================
-    // BLOQUE INMODIFICABLE INICIO
+    // BLOQUE INMODIFICABLE INICIO (Adaptado para M3)
     // ========================================================
     int Dir = alloc_frame();
     page_table_entry *init_TP = (page_table_entry *)(Dir << 12);
     clear_page_table(init_TP);
 
+    // Tabla Kernel 1 (0-4MB)
     int so = alloc_frame();
     page_table_entry *so_TP = (page_table_entry *)(so << 12);
     clear_page_table(so_TP);
     set_kernel_pages(so_TP);
 
+    // Tabla Kernel 2 (4-8MB) - NUEVO M3
+    int so2 = alloc_frame();
+    page_table_entry *so_TP2 = (page_table_entry *)(so2 << 12);
+    clear_page_table(so_TP2);
+    // (Opcional: set_kernel_pages si el kernel creciera > 4MB, pero por ahora solo clear)
+
+    // Tabla Usuario (ahora en 8MB)
     int user = alloc_frame();
     page_table_entry *user_TP = (page_table_entry *)(user << 12);
     clear_page_table(user_TP);
     set_user_pages(user_TP);
 
+    // Mapeos en el directorio
+    set_ss_pag(init_TP, 0, so, 0);            // entrada 0 --> tabla kernel 1
+    set_ss_pag(init_TP, 1, so2, 0);           // entrada 1 --> tabla kernel 2 (M3)
+    set_ss_pag(init_TP, 2, user, 1);          // entrada 2 --> tabla usuario (M3)
+    
+    // Mapeos de identidad para las propias tablas
     set_ss_pag(init_TP, Dir, Dir, 0);
     set_ss_pag(so_TP, so, so, 0);
+    set_ss_pag(so_TP, so2, so2, 0);           // so_TP2 también debe ser accesible
     set_ss_pag(so_TP, user, user, 1);
-
-    set_ss_pag(init_TP, 0, so, 0);            // directorio entrada 0 --> tabla kernel
-    set_ss_pag(init_TP, 1, user, 1);          // directorio entrada 1 --> tabla usuario
     // ========================================================
     // BLOQUE INMODIFICABLE FIN
     // ========================================================
 
-    // Mapear páginas dinámicas en la TP de sistema (so_TP)
-    set_ss_pag(so_TP, (int)idle_task >> 12, (int)idle_task >> 12, 0);       // PCB/stack de idle
-    set_ss_pag(so_TP, (int)pcb >> 12, (int)pcb >> 12, 0);                  // PCB/stack de init
-    set_ss_pag(so_TP, Dir, Dir, 0);                                         // directorio de init
-    set_ss_pag(so_TP, (int)get_DIR(idle_task) >> 12, (int)get_DIR(idle_task) >> 12, 0); // directorio de idle
+    // Mapear páginas dinámicas en la TP de sistema
+    // (Mapeamos en so_TP o so_TP2 según el frame)
+    auto_map_kernel_frame((int)idle_task >> 12, so_TP, so_TP2);
+    auto_map_kernel_frame((int)pcb >> 12, so_TP, so_TP2);
+    auto_map_kernel_frame(Dir, so_TP, so_TP2);
+    auto_map_kernel_frame((int)get_DIR(idle_task) >> 12, so_TP, so_TP2);
 
-    // Guardar la TP de sistema para mapeos futuros (fork, etc.)
+    // Guardar las TPs de sistema para mapeos futuros
     kernel_page_table = so_TP;
+    kernel_page_table2 = so_TP2;
 
     // 2. Asignamos la tabla de páginas
     pcb->dir_pages_baseAddr = init_TP;
 
-    // 3. Parche para Idle Task (copiamos el código de sistema)
+    // 3. Parche para Idle Task (copiamos el código de sistema: entrada 0 y 1)
     if (idle_task != NULL) {
         get_DIR(idle_task)[0] = init_TP[0];
+        get_DIR(idle_task)[1] = init_TP[1]; // Soporte M3
     }
 
     // 4. Configuramos el hardware (CR3)
     set_cr3(pcb->dir_pages_baseAddr);
 
-    // 5. ¡ESTA ES LA LÍNEA MÁGICA QUE YA TENÍAS! 
-    // Obliga a que al interrumpir init, se use su pila.
+    // 5. TSS
     tss.esp0 = KERNEL_ESP((union task_union *)pcb);
     writeMSR(0x175, (int)tss.esp0);
 
@@ -339,14 +363,18 @@ int allocate_DIR(struct task_struct *t)
     int frame = alloc_frame();
     if (frame < 0) return -1;
 
-    // Mapear el frame en la TP de sistema si paging está activo
-    if (kernel_page_table) set_ss_pag(kernel_page_table, frame, frame, 0);
+    // Mapear el frame en la TP de sistema correspondiente si paging está activo
+    if (kernel_page_table) {
+        if (frame < 1024) set_ss_pag(kernel_page_table, frame, frame, 0);
+        else if (kernel_page_table2) set_ss_pag(kernel_page_table2, frame - 1024, frame, 0);
+    }
 
     t->dir_pages_baseAddr = (page_table_entry *)(frame << 12);
     clear_page_table(t->dir_pages_baseAddr);
 
-    // Copy kernel mapping
+    // Copy kernel mapping (Entries 0 and 1 for M3)
     t->dir_pages_baseAddr[0] = current()->dir_pages_baseAddr[0];
+    t->dir_pages_baseAddr[1] = current()->dir_pages_baseAddr[1];
 
     return 1;
 }
