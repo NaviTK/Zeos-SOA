@@ -85,14 +85,17 @@ void test_read_multiprocess() {
     }
     int pid2 = fork();
     if (pid2 == 0) {
-    	write(1, "C1 waiting for 5 chars: ", 24);
+    	write(1, "C2 waiting for 5 chars: ", 24);
     	write(1, "\n", 1);
         int n = read(buf, 5);
         write(1, "C2 got: [", 9); write(1, buf, n); write(1, "]\n", 2);
         exit();
     }
-    write(1, "Parent blocking first input(1 char)\n", 19);
+    int t = gettime();
+    while ((gettime() - t) < 200); //yield para que el padre no se bloquee antes que los hijos
+    write(1, "Parent blocking first input(1 char)\n", 36);
     read(buf, 1);
+    write(1, "Parent unblocked. Ending test\n", 30);
 }
 
 int __attribute__ ((__section__(".text.main"))) main(void)
