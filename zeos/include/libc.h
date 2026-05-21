@@ -21,5 +21,7 @@ void perror();
 int block();
 int unblock(int pid);
 int get_stats(int type);
+int gotoxy(int x, int y);
+int set_color(int fg, int bg);
 
 #endif  /* __LIBC_H__ */

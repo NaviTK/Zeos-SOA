@@ -98,6 +98,64 @@ void test_read_multiprocess() {
     write(1, "Parent unblocked. Ending test\n", 30);
 }
 
+// Helper: read an integer from keyboard (digit by digit, echo, confirm with '.')
+int read_int() {
+    int val = 0;
+    char c;
+    while (1) {
+        read(&c, 1);
+        if (c == '.') break;  // Period to confirm (Enter/Space not in char_map)
+        if (c >= '0' && c <= '9') {
+            write(1, &c, 1);  // echo the digit
+            val = val * 10 + (c - '0');
+        }
+    }
+    write(1, " ", 1);
+    return val;
+}
+
+// TEST 5: gotoxy + set_color (interactive)
+void test_screen_syscalls() {
+    set_color(2, 0);  // default green on black
+    write(1, "\n--- Screen Test (q to quit) ---\n", 33);
+    write(1, "(type digits then '.' to confirm)\n", 34);
+
+    write(1, "X col (0-79): ", 14);
+    int px = read_int();
+
+    write(1, "\nY row (0-24): ", 15);
+    int py = read_int();
+
+    write(1, "\nFG color (0-15): ", 18);
+    int fg = read_int();
+
+    write(1, "\nBG color (0-15): ", 18);
+    int bg = read_int();
+
+    write(1, "\nSize of text to write: ", 25);
+    int size = read_int();
+    
+    write(1, "\nText to write: ", 16);
+    int n = read(buf, size);
+
+    if (gotoxy(px, py) < 0) {
+        write(1, "Error: invalid position\n", 24);
+        set_color(2, 0);
+        return;
+    }
+    if (set_color(fg, bg) < 0) {
+        write(1, "Error: invalid color\n", 21);
+        set_color(2, 0);
+        return;
+    }
+    
+    write(1, buf, n);
+
+    set_color(2, 0);  // restore default
+}
+
+
+
 int __attribute__ ((__section__(".text.main"))) main(void)
 {
     while (1) {
@@ -106,6 +164,7 @@ int __attribute__ ((__section__(".text.main"))) main(void)
         write(1, "2. M3 Stress\n", 13);
         write(1, "3. Read Simple\n", 15);
         write(1, "4. Read Multi\n", 14);
+        write(1, "5. Screen (gotoxy/color)\n", 25);
         write(1, "Selection: ", 11);
 
         read(buf, 1);
@@ -113,6 +172,7 @@ int __attribute__ ((__section__(".text.main"))) main(void)
         else if (buf[0] == '2') test_m3_stress();
         else if (buf[0] == '3') test_read_simple();
         else if (buf[0] == '4') test_read_multiprocess();
+        else if (buf[0] == '5') test_screen_syscalls();
     }
     return 0;
 }

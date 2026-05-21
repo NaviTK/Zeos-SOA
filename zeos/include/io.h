@@ -13,5 +13,7 @@
 void printc(char c);
 void printc_xy(Byte x, Byte y, char c);
 void printk(char *string);
+int sys_gotoxy(int col, int row);
+int sys_set_color(int fg, int bg);
 
 #endif  /* __IO_H__ */

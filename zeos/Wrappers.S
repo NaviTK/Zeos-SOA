@@ -364,3 +364,81 @@ get_stats_no_error:
     popl %ebp
     ret
 
+ENTRY(gotoxy)
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Load arguments: edx = x (arg1), ecx = y (arg2)
+    mov 0x08(%ebp), %edx   # x -> edx
+    mov 0x0c(%ebp), %ecx   # y -> ecx
+
+    # Save ecx and edx onto user stack
+    pushl %ecx
+    pushl %edx
+
+    # Syscall number 23 (gotoxy)
+    movl $23, %eax
+
+    # Push return address and fake dynamic link
+    pushl $gotoxy_return
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+gotoxy_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax
+    jge gotoxy_no_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+gotoxy_no_error:
+    popl %ebp
+    ret
+
+ENTRY(set_color)
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Load arguments: edx = fg (arg1), ecx = bg (arg2)
+    mov 0x08(%ebp), %edx   # fg -> edx
+    mov 0x0c(%ebp), %ecx   # bg -> ecx
+
+    # Save ecx and edx onto user stack
+    pushl %ecx
+    pushl %edx
+
+    # Syscall number 24 (set_color)
+    movl $24, %eax
+
+    # Push return address and fake dynamic link
+    pushl $set_color_return
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+set_color_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax
+    jge set_color_no_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+set_color_no_error:
+    popl %ebp
+    ret
+
