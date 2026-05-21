@@ -76,3 +76,15 @@ int sys_set_color(int fg, int bg)
   current_color = (Byte)((bg << 4) | (fg & 0x0F));
   return 0;
 }
+
+void disable_blinking(void)
+{
+  inb(0x3DA);
+  outb(0x3C0, 0x10);
+  Byte value = inb(0x3C1);
+  value &= ~0x08; // Clear Blink Enable bit
+  inb(0x3DA); // Reset flip-flop just in case
+  outb(0x3C0, 0x10); // Select index 0x10
+  outb(0x3C0, value); // Write value
+  outb(0x3C0, 0x20); // Enable screen (unblank)
+}

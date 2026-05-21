@@ -117,6 +117,17 @@ ENTRY(inb)
     popl %ebp
     ret
 
+// Writes a byte to a Port
+// void outb (unsigned short port, Byte value)
+ENTRY(outb)
+    pushl %ebp
+    movl %esp, %ebp
+    movl 8(%ebp), %edx
+    movl 12(%ebp), %eax
+    outb %al, (%dx)
+    popl %ebp
+    ret
+
 // Magic Bochs output
 // void bochs_out(char c)
 ENTRY (bochs_out)

@@ -40,6 +40,7 @@ void enable_int(void);
 void delay(void);
 
 Byte inb (unsigned short port);
+void outb (unsigned short port, Byte value);
 
 void bochs_out(char c);
 
