@@ -26,6 +26,8 @@ extern int last_kernel;
 extern int first_kernel;
 extern Byte phys_mem[TOTAL_PAGES];
 extern int shared_frames[NUM_SHARED_PAGES];
+extern int shared_refs[NUM_SHARED_PAGES];
+extern int shared_marked_rm[NUM_SHARED_PAGES];
 
 int sys_get_stats(int type) {
     if (type == 0) return TOTAL_PAGES;
@@ -161,6 +163,20 @@ int sys_fork(){
   }
   set_cr3(get_DIR(current())); // Flush final
 
+  // Heredar páginas de memoria compartida del padre al hijo
+  for (int shm_idx = NUM_PAG_DATA + NUM_PAG_CODE; shm_idx < PT_ENTRIES; shm_idx++) {
+    if (parent_ut[shm_idx].bits.present) {
+      unsigned int shm_frame = get_frame(parent_ut, shm_idx);
+      for (int i = 0; i < NUM_SHARED_PAGES; i++) {
+        if (shared_frames[i] == (int)shm_frame) {
+          set_ss_pag(child_ut, shm_idx, shm_frame, 1);
+          shared_refs[i]++;
+          break;
+        }
+      }
+    }
+  }
+
   // Configuración de PID y Quantum
   child->task.PID = ++pidGlobal;
   child->task.quantum = 10;
@@ -199,9 +215,29 @@ int sys_fork(){
 
 void sys_exit() {
     struct task_struct *curr = current();
-    
-    // 1. Liberar páginas de datos (frames físicos)
     page_table_entry *ut = (page_table_entry*)(get_DIR(curr)[2].bits.pbase_addr << 12);
+
+    // 0. Desconectar páginas de memoria compartida antes de liberar
+    for (unsigned int pt_idx = NUM_PAG_DATA + NUM_PAG_CODE; pt_idx < PT_ENTRIES; pt_idx++) {
+        if (ut[pt_idx].bits.present) {
+            unsigned int frame = get_frame(ut, pt_idx);
+            for (int i = 0; i < NUM_SHARED_PAGES; i++) {
+                if (shared_frames[i] == (int)frame) {
+                    del_ss_pag(ut, pt_idx);
+                    shared_refs[i]--;
+                    if (shared_refs[i] == 0 && shared_marked_rm[i] == 1) {
+                        free_frame(shared_frames[i]);
+                        shared_frames[i] = -1;
+                        shared_marked_rm[i] = 0;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    set_cr3(get_DIR(curr)); // Flush TLB tras desconectar shm
+
+    // 1. Liberar páginas de datos (frames físicos)
     free_user_pages(ut);
     
     // 2. Liberar tabla de páginas de usuario (el frame de la TP en sí)
@@ -316,6 +352,8 @@ int sys_block() {
 int sys_shmat(int id, void* addr) {
     /* 1. Validate shared page ID */
     if (id < 0 || id >= NUM_SHARED_PAGES) return -EINVAL;
+    /* Do not allow attaching pages marked for removal */
+    if (shared_marked_rm[id] == 1) return -EINVAL;
     if (shared_frames[id] < 0) {
         shared_frames[id] = alloc_frame();
         if (shared_frames[id] < 0) return -ENOMEM;
@@ -331,23 +369,16 @@ int sys_shmat(int id, void* addr) {
         if ((unsigned int)addr & 0xFFF) return -EINVAL;
         log_page = (unsigned int)addr >> 12;
 
-        /* Translate: addr is a full logical address. In the M3 layout,
-           user pages start at L_USER_START (0x800000 = page 2048).
-           The user page table index = log_page - 2048. */
         unsigned int pt_idx = log_page - (L_USER_START >> 12);
 
-        /* Must be within user PT range and past code pages */
         if (pt_idx < (NUM_PAG_DATA + NUM_PAG_CODE) || pt_idx >= PT_ENTRIES)
             return -EINVAL;
 
-        /* Must not already be mapped */
         if (pt[pt_idx].bits.present) return -EINVAL;
 
-        /* Map the shared frame */
         set_ss_pag(pt, pt_idx, shared_frames[id], 1);
     } else {
-        /* Auto-find: scan from first page after user code */
-        unsigned int start = NUM_PAG_DATA + NUM_PAG_CODE; /* page 28 in user PT */
+        unsigned int start = NUM_PAG_DATA + NUM_PAG_CODE;
         int found = 0;
         unsigned int pt_idx;
         for (pt_idx = start; pt_idx < PT_ENTRIES; pt_idx++) {
@@ -358,16 +389,73 @@ int sys_shmat(int id, void* addr) {
         }
         if (!found) return -ENOMEM;
 
-        /* Map the shared frame */
         set_ss_pag(pt, pt_idx, shared_frames[id], 1);
-
-        /* Compute the full logical address:
-           user PT entry pt_idx maps to logical page (L_USER_START>>12) + pt_idx */
         log_page = (L_USER_START >> 12) + pt_idx;
     }
 
-    /* Flush TLB */
+    /* Increment reference count */
+    shared_refs[id]++;
+
+    set_cr3(get_DIR(current()));
+    return (int)(log_page << 12);
+}
+
+/* Helper: zero out and free a shared page (call when refs==0 and marked_rm==1) */
+static void cleanup_shared_page(int id)
+{
+    /* Map temporarily at kernel page 512 to zero the content */
+    set_ss_pag(get_PT(current()), 512, shared_frames[id], 0);
+    set_cr3(get_DIR(current()));
+    int *tmp = (int *)(512 << 12);
+    for (int i = 0; i < (int)(PAGE_SIZE / sizeof(int)); i++)
+        tmp[i] = 0;
+    del_ss_pag(get_PT(current()), 512);
     set_cr3(get_DIR(current()));
 
-    return (int)(log_page << 12);
+    free_frame(shared_frames[id]);
+    shared_frames[id]    = -1;
+    shared_marked_rm[id] = 0;
+    shared_refs[id]      = 0;
+}
+
+int sys_shmdt(void *addr)
+{
+    if ((unsigned int)addr & 0xFFF) return -EINVAL;
+
+    unsigned int log_page = (unsigned int)addr >> 12;
+    unsigned int pt_idx   = log_page - (L_USER_START >> 12);
+
+    if (pt_idx < (NUM_PAG_DATA + NUM_PAG_CODE) || pt_idx >= PT_ENTRIES)
+        return -EINVAL;
+
+    page_table_entry *pt = (page_table_entry*)(get_DIR(current())[2].bits.pbase_addr << 12);
+    if (!pt[pt_idx].bits.present) return -EINVAL;
+
+    unsigned int frame = get_frame(pt, pt_idx);
+    int id = -1;
+    for (int i = 0; i < NUM_SHARED_PAGES; i++) {
+        if (shared_frames[i] == (int)frame) { id = i; break; }
+    }
+    if (id == -1) return -EINVAL;
+
+    del_ss_pag(pt, pt_idx);
+    set_cr3(get_DIR(current()));
+
+    shared_refs[id]--;
+    if (shared_refs[id] == 0 && shared_marked_rm[id] == 1)
+        cleanup_shared_page(id);
+
+    return 0;
+}
+
+int sys_shmrm(int id)
+{
+    if (id < 0 || id >= NUM_SHARED_PAGES) return -EINVAL;
+    if (shared_frames[id] < 0) return -EINVAL;
+
+    shared_marked_rm[id] = 1;
+    if (shared_refs[id] == 0)
+        cleanup_shared_page(id);
+
+    return 0;
 }

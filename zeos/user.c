@@ -256,6 +256,97 @@ void test_shmat() {
     write(1, "--- Shared Memory Test Done ---\n", 31);
 }
 
+// TEST 7: shmdt y shmrm
+void test_shmdt_shmrm() {
+    write(1, "\n--- shmdt/shmrm Test ---\n", 26);
+
+    // PART A: shmat + shmdt basico
+    write(1, "A) shmat(2,NULL) + shmdt\n", 25);
+    int *p = (int*)shmat(2, (void*)0);
+    if (p == (int*)-1) { write(1, "ERROR: shmat(2,NULL) fallo\n", 27); return; }
+    *p = 999;
+    write(1, "Escrito 999 en shm[2]\n", 22);
+    int r = shmdt((void*)p);
+    if (r == 0) write(1, "shmdt OK\n", 9);
+    else        write(1, "ERROR: shmdt fallo\n", 19);
+
+    // Verificar que el frame sigue activo (refs=0 pero sin shmrm)
+    int *p2 = (int*)shmat(2, (void*)0);
+    if (p2 == (int*)-1) { write(1, "ERROR: re-shmat fallo\n", 22); return; }
+    char vbuf[16];
+    itoa(*p2, vbuf);
+    write(1, "Re-leido: ", 10);
+    write(1, vbuf, strlen(vbuf));
+    if (*p2 == 999) write(1, " OK (frame persistio)\n", 22);
+    else            write(1, " FALLO (valor distinto)\n", 24);
+    shmdt((void*)p2);
+
+    // PART B: shmrm con ref=0 => limpieza inmediata
+    write(1, "B) shmrm con refs=0: limpieza inmediata\n", 40);
+    int *p3 = (int*)shmat(3, (void*)0);
+    if (p3 == (int*)-1) { write(1, "ERROR: shmat(3) fallo\n", 22); return; }
+    *p3 = 42;
+    shmdt((void*)p3);
+    int r2 = shmrm(3);
+    if (r2 == 0) write(1, "shmrm(3) OK (limpieza inmediata)\n", 33);
+    else         write(1, "ERROR: shmrm(3) fallo\n", 22);
+    // shmat(3) ahora debe fallar (pagina libre pero sin frame)
+    // Nota: shmrm libera el frame, pero shmat puede volver a asignar uno nuevo
+    // Solo verificamos que shmrm no crashea el sistema
+
+    // PART C: shmrm diferido (proceso hijo mantiene la pagina activa)
+    write(1, "C) shmrm diferido (hijo activo)\n", 32);
+    int *p4 = (int*)shmat(4, (void*)0);
+    if (p4 == (int*)-1) { write(1, "ERROR: shmat(4) fallo\n", 22); return; }
+    *p4 = 77777;
+    write(1, "Padre escribio 77777\n", 21);
+
+    int pid = fork();
+    if (pid == 0) {
+        // El padre llamara shmrm mientras nosotros tenemos el mapeo heredado
+        // Esperamos un poco para que el padre ejecute shmrm
+        int t = gettime();
+        while ((gettime() - t) < 100);
+        // Leemos: debe seguir valido
+        char hbuf[16];
+        itoa(*p4, hbuf);
+        write(1, "Hijo lee: ", 10);
+        write(1, hbuf, strlen(hbuf));
+        if (*p4 == 77777) write(1, " OK\n", 4);
+        else              write(1, " FALLO\n", 7);
+        shmdt((void*)p4);
+        exit();
+    }
+
+    // Padre: marca para borrado mientras hijo sigue activo
+    int r3 = shmrm(4);
+    if (r3 == 0) write(1, "Padre: shmrm(4) OK (diferido)\n", 30);
+    else         write(1, "ERROR: shmrm(4) fallo\n", 22);
+    // shmat(4) debe fallar ahora (marcado para borrado)
+    int *bad = (int*)shmat(4, (void*)0);
+    if (bad == (int*)-1) write(1, "shmat(4) tras shmrm -> error OK\n", 32);
+    else                 write(1, "shmat(4) tras shmrm -> deberia fallar!\n", 38);
+    // Desconectamos la del padre
+    shmdt((void*)p4);
+
+    int t2 = gettime();
+    while ((gettime() - t2) < 200);
+
+    // PART D: errores esperados
+    write(1, "D) Casos de error\n", 18);
+    int e1 = shmdt((void*)0x801000);
+    if (e1 == -1) write(1, "shmdt(no-mapeada) -> error OK\n", 30);
+    else          write(1, "shmdt sin mapeo -> deberia fallar!\n", 35);
+    int e2 = shmrm(99);
+    if (e2 == -1) write(1, "shmrm(99) -> error OK\n", 22);
+    else          write(1, "shmrm(99) -> deberia fallar!\n", 29);
+    int e3 = shmdt((void*)0x800123); // no alineada
+    if (e3 == -1) write(1, "shmdt(no-alineada) -> error OK\n", 31);
+    else          write(1, "shmdt(no-alineada) -> deberia fallar!\n", 37);
+
+    write(1, "--- shmdt/shmrm Test Done ---\n", 30);
+}
+
 int __attribute__ ((__section__(".text.main"))) main(void)
 {
     while (1) {
@@ -266,6 +357,7 @@ int __attribute__ ((__section__(".text.main"))) main(void)
         write(1, "4. Read Multi\n", 14);
         write(1, "5. Screen (gotoxy/color)\n", 25);
         write(1, "6. Shared Memory (shmat)\n", 25);
+        write(1, "7. shmdt + shmrm\n", 17);
         write(1, "Selection: ", 11);
 
         read(buf, 1);
@@ -275,6 +367,7 @@ int __attribute__ ((__section__(".text.main"))) main(void)
         else if (buf[0] == '4') test_read_multiprocess();
         else if (buf[0] == '5') test_screen_syscalls();
         else if (buf[0] == '6') test_shmat();
+        else if (buf[0] == '7') test_shmdt_shmrm();
     }
     return 0;
 }

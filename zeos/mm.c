@@ -222,12 +222,16 @@ void free_frame( unsigned int frame )
 
 /* Shared memory: 10 physical frames, one per shared page ID */
 int shared_frames[NUM_SHARED_PAGES];
+int shared_refs[NUM_SHARED_PAGES];
+int shared_marked_rm[NUM_SHARED_PAGES];
 
 void init_shared_pages(void)
 {
     int i;
     for (i = 0; i < NUM_SHARED_PAGES; i++) {
         shared_frames[i] = -1;
+        shared_refs[i] = 0;
+        shared_marked_rm[i] = 0;
     }
 }
 

@@ -482,3 +482,79 @@ shmat_no_error:
     popl %ebp
     ret
 
+ENTRY(shmdt)
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Load arguments: edx = addr (arg1)
+    mov 0x08(%ebp), %edx   # addr -> edx
+
+    # Save ecx and edx onto user stack
+    pushl %ecx
+    pushl %edx
+
+    # Syscall number 26 (shmdt)
+    movl $26, %eax
+
+    # Push return address and fake dynamic link
+    pushl $shmdt_return
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+shmdt_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax
+    jge shmdt_no_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+shmdt_no_error:
+    popl %ebp
+    ret
+
+ENTRY(shmrm)
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Load arguments: edx = id (arg1)
+    mov 0x08(%ebp), %edx   # id -> edx
+
+    # Save ecx and edx onto user stack
+    pushl %ecx
+    pushl %edx
+
+    # Syscall number 27 (shmrm)
+    movl $27, %eax
+
+    # Push return address and fake dynamic link
+    pushl $shmrm_return
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+shmrm_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax
+    jge shmrm_no_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+shmrm_no_error:
+    popl %ebp
+    ret
+

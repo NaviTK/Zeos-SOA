@@ -24,5 +24,7 @@ int get_stats(int type);
 int gotoxy(int x, int y);
 int set_color(int fg, int bg);
 void* shmat(int id, void* addr);
+int shmdt(void* addr);
+int shmrm(int id);
 
 #endif  /* __LIBC_H__ */

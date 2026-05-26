@@ -19,6 +19,8 @@ void free_user_pages(page_table_entry *process_PT);
 
 /* Shared memory: physical frames for shared pages */
 extern int shared_frames[NUM_SHARED_PAGES];
+extern int shared_refs[NUM_SHARED_PAGES];
+extern int shared_marked_rm[NUM_SHARED_PAGES];
 void init_shared_pages(void);
 
 extern Descriptor *gdt;
