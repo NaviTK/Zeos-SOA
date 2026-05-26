@@ -442,3 +442,43 @@ set_color_no_error:
     popl %ebp
     ret
 
+ENTRY(shmat)
+    pushl %ebp
+    movl %esp, %ebp
+
+    # Load arguments: edx = id (arg1), ecx = addr (arg2)
+    mov 0x08(%ebp), %edx   # id   -> edx
+    mov 0x0c(%ebp), %ecx   # addr -> ecx
+
+    # Save ecx and edx onto user stack
+    pushl %ecx
+    pushl %edx
+
+    # Syscall number 25 (shmat)
+    movl $25, %eax
+
+    # Push return address and fake dynamic link
+    pushl $shmat_return
+    pushl %ebp
+    mov %esp, %ebp
+
+    sysenter
+
+shmat_return:
+    popl %ebp
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    # Check for error (kernel returns negative errno)
+    cmpl $0, %eax
+    jge shmat_no_error
+
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+shmat_no_error:
+    popl %ebp
+    ret
+

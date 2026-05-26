@@ -25,6 +25,7 @@ extern struct list_head kbd_blocked;
 extern int last_kernel;
 extern int first_kernel;
 extern Byte phys_mem[TOTAL_PAGES];
+extern int shared_frames[NUM_SHARED_PAGES];
 
 int sys_get_stats(int type) {
     if (type == 0) return TOTAL_PAGES;
@@ -311,3 +312,62 @@ int sys_block() {
   //Retornem -1 si no hem trobat el pid
   return -1;
  }
+
+int sys_shmat(int id, void* addr) {
+    /* 1. Validate shared page ID */
+    if (id < 0 || id >= NUM_SHARED_PAGES) return -EINVAL;
+    if (shared_frames[id] < 0) {
+        shared_frames[id] = alloc_frame();
+        if (shared_frames[id] < 0) return -ENOMEM;
+    }
+
+    /* 2. Get the process's user page table */
+    page_table_entry *pt = (page_table_entry*)(get_DIR(current())[2].bits.pbase_addr << 12);
+
+    unsigned int log_page;
+
+    if (addr != (void*)0) {
+        /* Must be page-aligned */
+        if ((unsigned int)addr & 0xFFF) return -EINVAL;
+        log_page = (unsigned int)addr >> 12;
+
+        /* Translate: addr is a full logical address. In the M3 layout,
+           user pages start at L_USER_START (0x800000 = page 2048).
+           The user page table index = log_page - 2048. */
+        unsigned int pt_idx = log_page - (L_USER_START >> 12);
+
+        /* Must be within user PT range and past code pages */
+        if (pt_idx < (NUM_PAG_DATA + NUM_PAG_CODE) || pt_idx >= PT_ENTRIES)
+            return -EINVAL;
+
+        /* Must not already be mapped */
+        if (pt[pt_idx].bits.present) return -EINVAL;
+
+        /* Map the shared frame */
+        set_ss_pag(pt, pt_idx, shared_frames[id], 1);
+    } else {
+        /* Auto-find: scan from first page after user code */
+        unsigned int start = NUM_PAG_DATA + NUM_PAG_CODE; /* page 28 in user PT */
+        int found = 0;
+        unsigned int pt_idx;
+        for (pt_idx = start; pt_idx < PT_ENTRIES; pt_idx++) {
+            if (!pt[pt_idx].bits.present) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) return -ENOMEM;
+
+        /* Map the shared frame */
+        set_ss_pag(pt, pt_idx, shared_frames[id], 1);
+
+        /* Compute the full logical address:
+           user PT entry pt_idx maps to logical page (L_USER_START>>12) + pt_idx */
+        log_page = (L_USER_START >> 12) + pt_idx;
+    }
+
+    /* Flush TLB */
+    set_cr3(get_DIR(current()));
+
+    return (int)(log_page << 12);
+}

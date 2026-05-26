@@ -155,6 +155,106 @@ void test_screen_syscalls() {
 }
 
 
+// TEST 6: Shared Memory (shmat)
+void test_shmat() {
+    write(1, "\n--- Shared Memory Test ---\n", 28);
+
+    write(1, "--- PART 1: Auto-find address (NULL) ---\n", 41);
+    // 1. Attach shared page 0 with auto-find
+    int *p = (int*)shmat(0, (void*)0);
+    if (p == (int*)-1) {
+        write(1, "ERROR: shmat(0, NULL) failed\n", 29);
+        return;
+    }
+    write(1, "Parent shmat(0,NULL) -> 0x", 26);
+    itoa_hex((unsigned int)p, num);
+    write(1, num, strlen(num));
+    write(1, "\n", 1);
+
+    // 2. Write a magic value
+    *p = 12345;
+    write(1, "Parent wrote 12345\n", 19);
+
+    // 3. Fork child to read from same shared page
+    int pid = fork();
+    if (pid == 0) {
+        // Child: attach same shared page 0
+        int *cp = (int*)shmat(0, (void*)0);
+        if (cp == (int*)-1) {
+            write(1, "Child: shmat failed\n", 20);
+            exit();
+        }
+        write(1, "Child shmat(0,NULL) -> 0x", 25);
+        itoa_hex((unsigned int)cp, num);
+        write(1, num, strlen(num));
+        write(1, "\n", 1);
+
+        // Read the value written by parent
+        char vbuf[16];
+        itoa(*cp, vbuf);
+        write(1, "Child read: ", 12);
+        write(1, vbuf, strlen(vbuf));
+        if (*cp == 12345) write(1, " OK!\n", 5);
+        else write(1, " MISMATCH!\n", 11);
+        exit();
+    }
+
+    // 4. Wait for child
+    int t = gettime();
+    while ((gettime() - t) < 150);
+
+    write(1, "\n--- PART 2: Forced address (0x830000) ---\n", 43);
+    // We will use shared page ID 1 and force address 0x830000 for both
+    int *p_forced = (int*)shmat(1, (void*)0x830000);
+    if (p_forced == (int*)-1) {
+        write(1, "ERROR: shmat(1, 0x830000) failed\n", 33);
+        return;
+    }
+    write(1, "Parent shmat(1, 0x830000) -> 0x", 31);
+    itoa_hex((unsigned int)p_forced, num);
+    write(1, num, strlen(num));
+    write(1, "\n", 1);
+
+    *p_forced = 67890;
+    write(1, "Parent wrote 67890 at forced address\n", 37);
+
+    pid = fork();
+    if (pid == 0) {
+        // Child maps the same shared page ID 1 to the exact same forced address 0x830000
+        int *cp_forced = (int*)shmat(1, (void*)0x830000);
+        if (cp_forced == (int*)-1) {
+            write(1, "Child: shmat forced failed\n", 27);
+            exit();
+        }
+        write(1, "Child shmat(1, 0x830000) -> 0x", 30);
+        itoa_hex((unsigned int)cp_forced, num);
+        write(1, num, strlen(num));
+        write(1, "\n", 1);
+
+        char vbuf[16];
+        itoa(*cp_forced, vbuf);
+        write(1, "Child read: ", 12);
+        write(1, vbuf, strlen(vbuf));
+        if (*cp_forced == 67890) write(1, " OK!\n", 5);
+        else write(1, " MISMATCH!\n", 11);
+        exit();
+    }
+
+    t = gettime();
+    while ((gettime() - t) < 150);
+
+    // 5. Test error cases
+    write(1, "\n--- PART 3: Error validation ---\n", 34);
+    int *bad = (int*)shmat(99, (void*)0);
+    if (bad == (int*)-1) write(1, "shmat(99,NULL) -> error OK\n", 27);
+    else write(1, "shmat(99,NULL) -> should have failed!\n", 38);
+
+    int *bad2 = (int*)shmat(1, (void*)0x801001);
+    if (bad2 == (int*)-1) write(1, "shmat(1,0x801001) -> error OK\n", 30);
+    else write(1, "shmat(1,0x801001) -> should have failed!\n", 41);
+
+    write(1, "--- Shared Memory Test Done ---\n", 31);
+}
 
 int __attribute__ ((__section__(".text.main"))) main(void)
 {
@@ -165,6 +265,7 @@ int __attribute__ ((__section__(".text.main"))) main(void)
         write(1, "3. Read Simple\n", 15);
         write(1, "4. Read Multi\n", 14);
         write(1, "5. Screen (gotoxy/color)\n", 25);
+        write(1, "6. Shared Memory (shmat)\n", 25);
         write(1, "Selection: ", 11);
 
         read(buf, 1);
@@ -173,6 +274,7 @@ int __attribute__ ((__section__(".text.main"))) main(void)
         else if (buf[0] == '3') test_read_simple();
         else if (buf[0] == '4') test_read_multiprocess();
         else if (buf[0] == '5') test_screen_syscalls();
+        else if (buf[0] == '6') test_shmat();
     }
     return 0;
 }

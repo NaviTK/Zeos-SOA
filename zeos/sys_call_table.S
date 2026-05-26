@@ -27,7 +27,7 @@ ENTRY (sys_call_table)
 	.long sys_unblock		//22
 	.long sys_gotoxy		//23
 	.long sys_set_color		//24
-	.long sys_ni_syscall	//25
+	.long sys_shmat		//25
 	.long sys_ni_syscall	//26
 	.long sys_ni_syscall	//27
 	.long sys_ni_syscall	//28

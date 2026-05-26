@@ -17,6 +17,10 @@ void set_user_pages(page_table_entry *process_PT);
 void set_kernel_pages(page_table_entry *process_PT);
 void free_user_pages(page_table_entry *process_PT);
 
+/* Shared memory: physical frames for shared pages */
+extern int shared_frames[NUM_SHARED_PAGES];
+void init_shared_pages(void);
+
 extern Descriptor *gdt;
 
 extern TSS tss;

@@ -107,6 +107,7 @@ void init_mm()
   last_kernel = ((KERNEL_START + *p_sys_size + *p_usr_size)>>12) + 1;
 
   init_frames();
+  init_shared_pages();
 
 }
 /***********************************************/
@@ -217,6 +218,17 @@ void free_frame( unsigned int frame )
 {
     if (frame<TOTAL_PAGES)
       phys_mem[frame]=FREE_FRAME;
+}
+
+/* Shared memory: 10 physical frames, one per shared page ID */
+int shared_frames[NUM_SHARED_PAGES];
+
+void init_shared_pages(void)
+{
+    int i;
+    for (i = 0; i < NUM_SHARED_PAGES; i++) {
+        shared_frames[i] = -1;
+    }
 }
 
 /* set_ss_pag - Associates logical page 'page' with physical page 'frame' and 'user' access enabled/disabled */

@@ -23,5 +23,6 @@ int unblock(int pid);
 int get_stats(int type);
 int gotoxy(int x, int y);
 int set_color(int fg, int bg);
+void* shmat(int id, void* addr);
 
 #endif  /* __LIBC_H__ */

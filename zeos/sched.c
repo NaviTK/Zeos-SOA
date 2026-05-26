@@ -67,6 +67,8 @@ struct task_struct *alloc_pcb()
   
   struct task_struct *p = (struct task_struct *)(frame << 12);
   INIT_LIST_HEAD(&p->task_list);
+  p->list.next = NULL;
+  p->list.prev = NULL;
   list_add_tail(&p->task_list, &list_tasks);
   
   return p;
