@@ -374,7 +374,12 @@ int sys_shmat(int id, void* addr) {
         if (pt_idx < (NUM_PAG_DATA + NUM_PAG_CODE) || pt_idx >= PT_ENTRIES)
             return -EINVAL;
 
-        if (pt[pt_idx].bits.present) return -EINVAL;
+        if (pt[pt_idx].bits.present) {
+            if (get_frame(pt, pt_idx) == shared_frames[id]) {
+                return (int)(log_page << 12);
+            }
+            return -EINVAL;
+        }
 
         set_ss_pag(pt, pt_idx, shared_frames[id], 1);
     } else {
