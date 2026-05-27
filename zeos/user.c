@@ -345,7 +345,136 @@ void test_shmdt_shmrm() {
     else          write(1, "shmdt(no-alineada) -> deberia fallar!\n", 37);
 
     write(1, "--- shmdt/shmrm Test Done ---\n", 30);
+
+    // PART E: sys_exit limpia pagina shmrm (sin shmdt explicito)
+    write(1, "E) sys_exit + shmrm: sin shmdt explicito\n", 41);
+    // 1. Padre e hijo adjuntan SHM id=5
+    int *p5 = (int*)shmat(5, (void*)0);
+    if (p5 == (int*)-1) { write(1, "ERROR: shmat(5) fallo\n", 22); return; }
+    *p5 = 55555;
+    write(1, "Padre escribio 55555 en shm[5]\n", 31);
+
+    int pid2 = fork();
+    if (pid2 == 0) {
+        // El hijo hereda el mapeo, espera y hace EXIT sin shmdt
+        int t3 = gettime();
+        while ((gettime() - t3) < 80);
+        // verificamos que podemos leer
+        char hbuf2[16];
+        itoa(*p5, hbuf2);
+        write(1, "Hijo lee: ", 10);
+        write(1, hbuf2, strlen(hbuf2));
+        if (*p5 == 55555) write(1, " OK\n", 4);
+        else              write(1, " FALLO\n", 7);
+        // EXIT sin shmdt: sys_exit debe llamar cleanup_shared_page
+        exit();
+    }
+
+    // Padre: marca shmrm mientras hijo vive (refs=2: padre+hijo)
+    int r4 = shmrm(5);
+    if (r4 == 0) write(1, "Padre: shmrm(5) OK (diferido, refs>0)\n", 38);
+    else         write(1, "ERROR: shmrm(5) fallo\n", 22);
+
+    // Padre hace shmdt (refs baja a 1, hijo aun vive)
+    shmdt((void*)p5);
+    write(1, "Padre: shmdt(5) hecho (refs=1)\n", 31);
+
+    // Esperamos a que el hijo termine con exit() sin shmdt
+    // Tras el exit del hijo: refs=0 y marked_rm=1 => cleanup_shared_page en sys_exit
+    int t4 = gettime();
+    while ((gettime() - t4) < 200);
+
+    // Verificacion: shmat(5) debe dar una pagina NUEVA (frame limpio, valor = 0)
+    int *p6 = (int*)shmat(5, (void*)0);
+    if (p6 == (int*)-1) {
+        write(1, "RESULT: shmat(5) fallo => frame fue liberado OK\n", 48);
+    } else {
+        char vbuf2[16];
+        itoa(*p6, vbuf2);
+        write(1, "RESULT: shmat(5) -> valor=", 26);
+        write(1, vbuf2, strlen(vbuf2));
+        if (*p6 == 0) write(1, " => frame zeroed OK (sys_exit limpio)\n", 38);
+        else          write(1, " => FALLO: valor antiguo sobrevivio!\n", 36);
+        shmdt((void*)p6);
+    }
+
+    // PART F: escenarios faltantes
+    // F1: bidireccional — hijo escribe, padre lee
+    write(1, "F1) Hijo escribe, padre lee\n", 28);
+    int *pF = (int*)shmat(6, (void*)0);
+    if (pF == (int*)-1) { write(1, "ERROR: shmat(6)\n", 16); return; }
+    *pF = 0;
+    int pidF = fork();
+    if (pidF == 0) {
+        *pF = 99999;
+        write(1, "Hijo escribio 99999\n", 20);
+        shmdt((void*)pF);
+        exit();
+    }
+    int tF = gettime(); while ((gettime() - tF) < 150);
+    char fvbuf[16];
+    itoa(*pF, fvbuf);
+    write(1, "Padre lee: ", 11); write(1, fvbuf, strlen(fvbuf));
+    if (*pF == 99999) write(1, " OK\n", 4);
+    else              write(1, " FALLO\n", 7);
+    shmdt((void*)pF);
+
+    // F2: hijo hace shmdt sin shmrm -> frame sigue vivo para el padre
+    write(1, "F2) Hijo shmdt sin shmrm, padre sigue leyendo\n", 47);
+    int *pF2 = (int*)shmat(7, (void*)0);
+    if (pF2 == (int*)-1) { write(1, "ERROR: shmat(7)\n", 16); return; }
+    *pF2 = 11111;
+    int pidF2 = fork();
+    if (pidF2 == 0) {
+        shmdt((void*)pF2);   // hijo desconecta (refs: 2->1), sin shmrm
+        write(1, "Hijo: shmdt(7) hecho\n", 21);
+        exit();
+    }
+    int tF2 = gettime(); while ((gettime() - tF2) < 150);
+    // El padre aun debe poder leer (frame no liberado: refs=1, no shmrm)
+    char f2buf[16];
+    itoa(*pF2, f2buf);
+    write(1, "Padre lee tras shmdt hijo: ", 27); write(1, f2buf, strlen(f2buf));
+    if (*pF2 == 11111) write(1, " OK (frame vivo)\n", 17);
+    else               write(1, " FALLO\n", 7);
+    shmdt((void*)pF2);
+
+    // F3: varios hijos heredan -> refs correctos
+    write(1, "F3) Dos hijos heredan shm[8], refs correctos\n", 46);
+    int *pF3 = (int*)shmat(8, (void*)0);
+    if (pF3 == (int*)-1) { write(1, "ERROR: shmat(8)\n", 16); return; }
+    *pF3 = 33333;
+    // Fork hijo1
+    int pidH1 = fork();
+    if (pidH1 == 0) {
+        int tH1 = gettime(); while ((gettime() - tH1) < 50);
+        char h1buf[16]; itoa(*pF3, h1buf);
+        write(1, "H1 lee: ", 8); write(1, h1buf, strlen(h1buf));
+        if (*pF3 == 33333) write(1, " OK\n", 4); else write(1, " FALLO\n", 7);
+        shmdt((void*)pF3);
+        exit();
+    }
+    // Fork hijo2
+    int pidH2 = fork();
+    if (pidH2 == 0) {
+        int tH2 = gettime(); while ((gettime() - tH2) < 80);
+        char h2buf[16]; itoa(*pF3, h2buf);
+        write(1, "H2 lee: ", 8); write(1, h2buf, strlen(h2buf));
+        if (*pF3 == 33333) write(1, " OK\n", 4); else write(1, " FALLO\n", 7);
+        shmdt((void*)pF3);
+        exit();
+    }
+    // Padre espera a que ambos hijos terminen, luego verifica que el frame sigue vivo
+    int tF3 = gettime(); while ((gettime() - tF3) < 200);
+    char f3buf[16]; itoa(*pF3, f3buf);
+    write(1, "Padre tras hijos: ", 18); write(1, f3buf, strlen(f3buf));
+    if (*pF3 == 33333) write(1, " OK (refs correctos)\n", 21);
+    else               write(1, " FALLO\n", 7);
+    shmdt((void*)pF3);
+
+    write(1, "--- shmdt/shmrm Test Done ---\n", 30);
 }
+
 
 int __attribute__ ((__section__(".text.main"))) main(void)
 {
