@@ -29,6 +29,9 @@ extern int shared_frames[NUM_SHARED_PAGES];
 extern int shared_refs[NUM_SHARED_PAGES];
 extern int shared_marked_rm[NUM_SHARED_PAGES];
 
+/* Forward declaration */
+static void cleanup_shared_page(int id);
+
 int sys_get_stats(int type) {
     if (type == 0) return TOTAL_PAGES;
     if (type == 1) {
@@ -225,11 +228,8 @@ void sys_exit() {
                 if (shared_frames[i] == (int)frame) {
                     del_ss_pag(ut, pt_idx);
                     shared_refs[i]--;
-                    if (shared_refs[i] == 0 && shared_marked_rm[i] == 1) {
-                        free_frame(shared_frames[i]);
-                        shared_frames[i] = -1;
-                        shared_marked_rm[i] = 0;
-                    }
+                    if (shared_refs[i] == 0 && shared_marked_rm[i] == 1)
+                        cleanup_shared_page(i);
                     break;
                 }
             }
